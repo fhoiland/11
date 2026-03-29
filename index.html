@@ -1,10 +1,1119 @@
-<html>
+<!DOCTYPE html>
+<html lang="no">
 <head>
-    <title>My Project</title>
     <meta charset="UTF-8">
-    <meta name="VERSION" content="1.4.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>11-ern</title>
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2C5F2E">
+  <title>11-ern</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #F5F0E8;
+      --surface: #FFFFFF;
+      --primary: #2C5F2E;
+      --primary-dark: #1e4320;
+      --danger: #8B2020;
+      --text: #1A1A1A;
+      --text-muted: #6B6B6B;
+      --border: #D4C9B0;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Views ─────────────────────────────── */
+    .view { display: none; flex-direction: column; flex: 1; }
+    .view.active { display: flex; }
+
+    /* ── Header ─────────────────────────────── */
+    .app-header {
+      background: var(--primary);
+      color: #fff;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .app-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .app-header .subtitle {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+    .header-right { display: flex; align-items: center; gap: 0.5rem; }
+    .version-badge {
+      font-size: 0.7rem;
+      opacity: 0.6;
+      letter-spacing: 0.03em;
+      color: #fff;
+    }
+
+    /* ── Main content ─────────────────────── */
+    .view-main {
+      flex: 1;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* ── Footer ─────────────────────────────── */
+    .view-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    /* ── Buttons ─────────────────────────────── */
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      min-height: 44px;
+      padding: 0.5rem 1rem;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:active { opacity: 0.8; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      width: 100%;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      font-size: 0.875rem;
+      min-height: 36px;
+      padding: 0.375rem 0.75rem;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.3); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      text-align: center;
+      width: 100%;
+      min-height: 36px;
+    }
+    .btn-ghost:hover { background: var(--border); }
+
+    /* ── Inputs ─────────────────────────────── */
+    input[type="text"], input[type="number"] {
+      font-family: inherit;
+      font-size: 1rem;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.625rem 0.75rem;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--primary); }
+    input.error { border-color: var(--danger); }
+
+    .field-error {
+      font-size: 0.8rem;
+      color: var(--danger);
+      margin-top: 0.25rem;
+    }
+
+    /* ── Setup view ─────────────────────────── */
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      width: fit-content;
+    }
+    .stepper button {
+      background: transparent;
+      color: var(--primary);
+      font-size: 1.5rem;
+      font-weight: 400;
+      width: 52px;
+      min-height: 52px;
+      border-radius: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stepper button:hover { background: var(--bg); }
+    .stepper-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      min-width: 52px;
+      text-align: center;
+      padding: 0 0.25rem;
+    }
+
+    .player-name-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .player-name-row {
+      display: flex;
+      flex-direction: column;
+    }
+    .player-name-row label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+    .player-name-row input { width: 100%; }
+
+    /* ── Round entry view ─────────────────────── */
+    .round-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .round-badge {
+      font-size: 0.875rem;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .player-score-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .player-score-row {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      border: 1px solid var(--border);
+    }
+    .player-score-row .player-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .player-score-row .player-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-score-row .player-total {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .player-score-row .score-input {
+      width: 80px;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 600;
+      padding: 0.5rem;
+      flex-shrink: 0;
+    }
+    /* hide number spinners */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    /* ── Level info in round entry ─────────── */
+    .player-level-info {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .level-cleared-label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.875rem;
+      margin-top: 0.4rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .level-cleared-check {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* ── Nivå-oversikt section ──────────────── */
+    .level-overview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .level-overview-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .level-overview-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .level-overview-row:last-child { border-bottom: none; }
+    .level-overview-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .level-overview-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+    }
+    .level-overview-badge {
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      align-self: center;
+    }
+    .level-overview-badge.level-done {
+      background: var(--text-muted);
+    }
+
+    /* ── History panel ──────────────────────── */
+    #history-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    #history-panel summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    #history-panel summary::-webkit-details-marker { display: none; }
+    #history-panel summary::after {
+      content: '›';
+      font-size: 1rem;
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    #history-panel[open] summary::after { transform: rotate(90deg); }
+    .history-round {
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1rem;
+    }
+    .history-round:last-child { border-bottom: none; }
+    .history-round-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.3rem;
+    }
+    .history-round-num {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .btn-edit-round {
+      background: transparent;
+      color: var(--primary);
+      font-size: 0.8rem;
+      font-weight: 600;
+      min-height: 28px;
+      padding: 0.2rem 0.6rem;
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-sm);
+    }
+    .btn-edit-round:hover { background: var(--bg); }
+    .history-round-scores {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .hist-player-score { white-space: nowrap; }
+    .hist-cleared {
+      color: var(--primary);
+      font-weight: 700;
+      margin-left: 0.15rem;
+      font-size: 0.8rem;
+    }
+
+    /* ── Edit round modal ───────────────────── */
+    .edit-player-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .edit-player-row:last-child { border-bottom: none; }
+    .edit-player-name {
+      flex: 1;
+      font-weight: 600;
+      font-size: 0.95rem;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .edit-score-input {
+      width: 72px;
+      text-align: center;
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 0.4rem;
+      flex-shrink: 0;
+    }
+    .edit-cleared-label {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .edit-cleared-label input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    #modal-edit-body {
+      margin: 0.75rem 0;
+    }
+
+    /* ── Modal ─────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 320px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-height: 85dvh;
+      overflow-y: auto;
+    }
+    .modal-box p { font-size: 1rem; line-height: 1.4; }
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      font-weight: 600;
+      width: 100%;
+      min-height: 44px;
+    }
+    .btn-danger:hover { background: #6e1a1a; }
+  </style>
 </head>
 <body>
-    <h1>Welcome to My Project</h1>
+<div id="app">
+
+  <!-- VIEW 1: Setup -->
+  <div id="view-setup" class="view">
+    <div class="app-header">
+      <div>
+        <h1>11-ern</h1>
+        <p class="subtitle">Nytt spill</p>
+      </div>
+      <span class="version-badge" id="version-display"></span>
+    </div>
+    <div class="view-main">
+      <div>
+        <p class="section-label">Antall spillere</p>
+        <div class="stepper">
+          <button id="players-dec" aria-label="Færre spillere">−</button>
+          <span class="stepper-value" id="player-count-display">4</span>
+          <button id="players-inc" aria-label="Flere spillere">+</button>
+        </div>
+      </div>
+      <div>
+        <p class="section-label">Spillernavn</p>
+        <div class="player-name-list" id="player-name-list"></div>
+      </div>
+      <button class="btn-primary" id="btn-start-game">Start spill</button>
+    </div>
+  </div>
+
+  <!-- VIEW 2: Round Entry -->
+  <div id="view-round" class="view">
+    <div class="app-header">
+      <h1>11-ern</h1>
+      <div class="header-right">
+        <span class="round-badge" id="round-badge">Runde 1</span>
+        <span class="version-badge" id="version-display-round"></span>
+      </div>
+    </div>
+    <div class="view-main">
+      <p class="section-label">Poeng denne runden</p>
+      <div class="player-score-list" id="player-score-list"></div>
+      <div id="round-submit-error" class="field-error" style="display:none"></div>
+      <button class="btn-primary" id="btn-submit-round">Registrer runde</button>
+      <div id="level-overview-section"></div>
+      <details id="history-panel">
+        <summary>Rundehistorikk (<span id="history-count">0</span> runder)</summary>
+        <div id="history-list"></div>
+      </details>
+    </div>
+    <div class="view-footer">
+      <button class="btn-ghost" id="btn-new-game-round">Nytt spill</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- New game confirmation modal -->
+<div class="modal-overlay" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-text">
+  <div class="modal-box">
+    <p id="modal-text">Start nytt spill? Nåværende spill vil bli slettet.</p>
+    <div class="modal-actions">
+      <button class="btn-danger" id="modal-yes">Ja, start nytt spill</button>
+      <button class="btn-ghost" id="modal-no">Avbryt</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit round modal -->
+<div class="modal-overlay" id="modal-edit" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+  <div class="modal-box">
+    <p id="modal-edit-title"></p>
+    <div id="modal-edit-body"></div>
+    <div id="modal-edit-error" class="field-error" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="modal-edit-save">Lagre endringer</button>
+      <button class="btn-ghost" id="modal-edit-cancel">Avbryt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Constants ───────────────────────────────────────
+  const VERSION = '1.3.0';
+  const STORAGE_KEY = '11ern_state';
+  const MIN_PLAYERS = 2;
+  const MAX_PLAYERS = 8;
+  const LEVELS = [
+    { n: 1,  desc: 'Serie på 4',           trump: 0 },
+    { n: 2,  desc: 'Tress 2 ganger',       trump: 1 },
+    { n: 3,  desc: 'Serie på 4 + tress',   trump: 1 },
+    { n: 4,  desc: 'Serie på 5',           trump: 2 },
+    { n: 5,  desc: 'Tress 3 ganger',       trump: 2 },
+    { n: 6,  desc: 'Serie på 5 + tress',   trump: 2 },
+    { n: 7,  desc: 'Serie på 7',           trump: 2 },
+    { n: 8,  desc: 'Serie på 6 + tress',   trump: 3 },
+    { n: 9,  desc: 'Serie på 4, 2 ganger', trump: 2 },
+    { n: 10, desc: '5 like 2 ganger',      trump: 4 },
+    { n: 11, desc: 'Serie på 9',           trump: 4 },
+  ];
+
+  // ── State ───────────────────────────────────────────
+  let state = defaultState();
+  let editingRoundIndex = null;
+
+  function defaultState() {
+    return {
+      view: 'setup',
+      playerCount: 4,
+      players: [],          // [{ name }]
+      rounds: [],           // [[score0, score1, ...], ...]
+      playerLevels: [],     // [1..11] per player
+      roundLevelCleared: [], // [[bool, bool, ...], ...] per round per player
+    };
+  }
+
+  // ── Persistence ─────────────────────────────────────
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+  }
+
+  function loadSavedState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.players) || s.players.length < MIN_PLAYERS) return null;
+      // Backwards compat: populate playerLevels if missing
+      if (!Array.isArray(s.playerLevels) || s.playerLevels.length !== s.players.length) {
+        s.playerLevels = new Array(s.players.length).fill(1);
+      }
+      // Backwards compat: populate roundLevelCleared if missing or mismatched
+      if (!Array.isArray(s.roundLevelCleared) || s.roundLevelCleared.length !== s.rounds.length) {
+        s.roundLevelCleared = (s.rounds || []).map(
+          () => new Array(s.players.length).fill(false)
+        );
+      }
+      return s;
+    } catch { return null; }
+  }
+
+  // ── Computation ─────────────────────────────────────
+  function getTotals() {
+    return state.players.map((_, i) =>
+      state.rounds.reduce((sum, round) => sum + (round[i] ?? 0), 0)
+    );
+  }
+
+  function recalculateLevels() {
+    state.playerLevels = new Array(state.players.length).fill(1);
+    state.roundLevelCleared.forEach(cleared => {
+      cleared.forEach((didClear, i) => {
+        if (didClear && state.playerLevels[i] < LEVELS.length) {
+          state.playerLevels[i]++;
+        }
+      });
+    });
+  }
+
+  // ── Navigation ──────────────────────────────────────
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + viewId).classList.add('active');
+    state.view = viewId;
+    saveState();
+    renders[viewId]();
+  }
+
+  // ── Render: Setup ───────────────────────────────────
+  function renderSetup() {
+    document.getElementById('player-count-display').textContent = state.playerCount;
+    const list = document.getElementById('player-name-list');
+    const existing = list.querySelectorAll('input');
+    const oldValues = Array.from(existing).map(el => el.value);
+
+    list.innerHTML = '';
+    for (let i = 0; i < state.playerCount; i++) {
+      const row = document.createElement('div');
+      row.className = 'player-name-row';
+      const label = document.createElement('label');
+      label.textContent = `Spiller ${i + 1}`;
+      label.htmlFor = `pname-${i}`;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `pname-${i}`;
+      input.placeholder = `Spiller ${i + 1}`;
+      input.value = oldValues[i] ?? '';
+      input.autocomplete = 'off';
+      row.appendChild(label);
+      row.appendChild(input);
+      list.appendChild(row);
+    }
+  }
+
+  // ── Render: Round ───────────────────────────────────
+  function renderRound() {
+    const roundNum = state.rounds.length + 1;
+    document.getElementById('round-badge').textContent = `Runde ${roundNum}`;
+    document.getElementById('round-submit-error').style.display = 'none';
+
+    const totals = getTotals();
+    const sortedIndices = state.players
+      .map((_, i) => i)
+      .sort((a, b) => totals[a] - totals[b]);
+
+    const list = document.getElementById('player-score-list');
+    list.innerHTML = '';
+
+    sortedIndices.forEach(i => {
+      const p = state.players[i];
+      const row = document.createElement('div');
+      row.className = 'player-score-row';
+
+      const info = document.createElement('div');
+      info.className = 'player-info';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'player-name';
+      nameEl.textContent = p.name;
+
+      const totalEl = document.createElement('div');
+      totalEl.className = 'player-total';
+      totalEl.textContent = roundNum > 1 ? `Total: ${totals[i]}` : '';
+
+      const lvl = LEVELS[(state.playerLevels[i] ?? 1) - 1];
+      const levelInfoEl = document.createElement('div');
+      levelInfoEl.className = 'player-level-info';
+      levelInfoEl.textContent = `Nivå ${lvl.n}: ${lvl.desc} · maks ${lvl.trump} trumf`;
+
+      const clearedId = `cleared-${i}`;
+      const clearedLabel = document.createElement('label');
+      clearedLabel.className = 'level-cleared-label';
+      clearedLabel.htmlFor = clearedId;
+      const clearedCheck = document.createElement('input');
+      clearedCheck.type = 'checkbox';
+      clearedCheck.className = 'level-cleared-check';
+      clearedCheck.id = clearedId;
+      clearedCheck.dataset.playerIndex = i;
+      const clearedText = document.createTextNode('Klarte nivået');
+      clearedLabel.appendChild(clearedCheck);
+      clearedLabel.appendChild(clearedText);
+
+      info.appendChild(nameEl);
+      info.appendChild(totalEl);
+      info.appendChild(levelInfoEl);
+      info.appendChild(clearedLabel);
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.inputMode = 'numeric';
+      input.className = 'score-input';
+      input.dataset.playerIndex = i;
+      input.value = '';
+      input.placeholder = '0';
+      input.min = '0';
+
+      row.appendChild(info);
+      row.appendChild(input);
+      list.appendChild(row);
+    });
+
+    renderLevelOverview();
+    renderHistory();
+
+    // Keyboard navigation: Enter advances to next input or submits
+    const inputs = list.querySelectorAll('.score-input');
+    inputs.forEach((input, i) => {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (i < inputs.length - 1) inputs[i + 1].focus();
+          else submitRound();
+        }
+      });
+    });
+
+    if (inputs.length > 0) inputs[0].focus();
+  }
+
+  function renderLevelOverview() {
+    const section = document.getElementById('level-overview-section');
+    section.innerHTML = '';
+
+    const container = document.createElement('div');
+    container.className = 'level-overview';
+
+    const header = document.createElement('div');
+    header.className = 'level-overview-header';
+    header.textContent = 'Nivåoversikt';
+    container.appendChild(header);
+
+    const sorted = state.players
+      .map((p, i) => ({ name: p.name, level: state.playerLevels[i] ?? 1 }))
+      .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+
+    sorted.forEach(entry => {
+      const lvl = LEVELS[entry.level - 1];
+      const done = entry.level >= LEVELS.length;
+
+      const row = document.createElement('div');
+      row.className = 'level-overview-row';
+
+      const leftCol = document.createElement('div');
+      const nameEl = document.createElement('div');
+      nameEl.className = 'level-overview-name';
+      nameEl.textContent = entry.name;
+      const descEl = document.createElement('div');
+      descEl.className = 'level-overview-desc';
+      descEl.textContent = `${lvl.desc} · maks ${lvl.trump} trumf`;
+      leftCol.appendChild(nameEl);
+      leftCol.appendChild(descEl);
+
+      const badge = document.createElement('span');
+      badge.className = 'level-overview-badge' + (done ? ' level-done' : '');
+      badge.textContent = done ? `Nivå ${lvl.n} ✓` : `Nivå ${lvl.n}`;
+
+      row.appendChild(leftCol);
+      row.appendChild(badge);
+      container.appendChild(row);
+    });
+
+    section.appendChild(container);
+  }
+
+  function renderHistory() {
+    const countEl = document.getElementById('history-count');
+    const listEl = document.getElementById('history-list');
+    countEl.textContent = state.rounds.length;
+
+    if (state.rounds.length === 0) {
+      listEl.innerHTML = '';
+      return;
+    }
+
+    // Build rows newest-first without mutating state.rounds
+    const rows = state.rounds.map((scores, r) => {
+      const playerScores = state.players.map((p, pi) => {
+        const cleared = state.roundLevelCleared[r]?.[pi] ?? false;
+        return `<span class="hist-player-score">${p.name}: <strong>${scores[pi] ?? 0}</strong>${cleared ? '<span class="hist-cleared" title="Klarte nivået">✓</span>' : ''}</span>`;
+      }).join('');
+
+      return { r, html: `
+        <div class="history-round">
+          <div class="history-round-header">
+            <span class="history-round-num">Runde ${r + 1}</span>
+            <button class="btn-edit-round" data-round="${r}">Rediger</button>
+          </div>
+          <div class="history-round-scores">${playerScores}</div>
+        </div>` };
+    }).reverse();
+
+    listEl.innerHTML = rows.map(r => r.html).join('');
+
+    listEl.querySelectorAll('.btn-edit-round').forEach(btn => {
+      btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.round, 10)));
+    });
+  }
+
+  const renders = { setup: renderSetup, round: renderRound };
+
+  // ── Actions ─────────────────────────────────────────
+  function startGame() {
+    const inputs = document.querySelectorAll('#player-name-list input');
+    let valid = true;
+    const names = [];
+    inputs.forEach(input => {
+      const val = input.value.trim();
+      if (!val) {
+        input.classList.add('error');
+        valid = false;
+      } else {
+        input.classList.remove('error');
+        names.push(val);
+      }
+    });
+    if (!valid) return;
+
+    state.players = names.map(name => ({ name }));
+    state.rounds = [];
+    state.roundLevelCleared = [];
+    state.playerLevels = new Array(names.length).fill(1);
+    saveState();
+    showView('round');
+  }
+
+  function submitRound() {
+    const inputs = document.querySelectorAll('#player-score-list .score-input');
+    const errorEl = document.getElementById('round-submit-error');
+    const scores = new Array(state.players.length);
+    let valid = true;
+
+    inputs.forEach(input => {
+      const pi = parseInt(input.dataset.playerIndex, 10);
+      const raw = input.value.trim();
+      if (raw === '') {
+        input.classList.add('error');
+        valid = false;
+      } else {
+        const n = parseInt(raw, 10);
+        if (isNaN(n) || n < 0) {
+          input.classList.add('error');
+          valid = false;
+        } else {
+          input.classList.remove('error');
+          scores[pi] = n;
+        }
+      }
+    });
+
+    if (!valid) {
+      errorEl.textContent = 'Fyll inn poeng (0 eller mer) for alle spillere.';
+      errorEl.style.display = '';
+      return;
+    }
+
+    errorEl.style.display = 'none';
+
+    const clearedThisRound = new Array(state.players.length).fill(false);
+    document.querySelectorAll('.level-cleared-check').forEach(cb => {
+      clearedThisRound[parseInt(cb.dataset.playerIndex, 10)] = cb.checked;
+    });
+
+    state.rounds.push(scores);
+    state.roundLevelCleared.push(clearedThisRound);
+    recalculateLevels();
+
+    saveState();
+    showView('round');
+  }
+
+  function resetGame() {
+    state = defaultState();
+    saveState();
+    showView('setup');
+  }
+
+  // ── Edit round modal ─────────────────────────────────
+  function openEditModal(roundIndex) {
+    editingRoundIndex = roundIndex;
+
+    document.getElementById('modal-edit-title').textContent = `Rediger runde ${roundIndex + 1}`;
+    document.getElementById('modal-edit-error').style.display = 'none';
+
+    const body = document.getElementById('modal-edit-body');
+    body.innerHTML = '';
+
+    state.players.forEach((p, pi) => {
+      const score = state.rounds[roundIndex][pi] ?? 0;
+      const cleared = state.roundLevelCleared[roundIndex]?.[pi] ?? false;
+
+      const row = document.createElement('div');
+      row.className = 'edit-player-row';
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'edit-player-name';
+      nameEl.textContent = p.name;
+
+      const scoreInput = document.createElement('input');
+      scoreInput.type = 'number';
+      scoreInput.inputMode = 'numeric';
+      scoreInput.className = 'edit-score-input';
+      scoreInput.id = `edit-score-${pi}`;
+      scoreInput.value = score;
+      scoreInput.min = '0';
+
+      const clearedLabel = document.createElement('label');
+      clearedLabel.className = 'edit-cleared-label';
+      const clearedCheck = document.createElement('input');
+      clearedCheck.type = 'checkbox';
+      clearedCheck.id = `edit-cleared-${pi}`;
+      clearedCheck.checked = cleared;
+      const clearedText = document.createTextNode('Klarte');
+      clearedLabel.appendChild(clearedCheck);
+      clearedLabel.appendChild(clearedText);
+
+      row.appendChild(nameEl);
+      row.appendChild(scoreInput);
+      row.appendChild(clearedLabel);
+      body.appendChild(row);
+    });
+
+    document.getElementById('modal-edit').classList.add('open');
+    body.querySelector('.edit-score-input')?.focus();
+  }
+
+  function hideEditModal() {
+    editingRoundIndex = null;
+    document.getElementById('modal-edit').classList.remove('open');
+  }
+
+  function saveEditedRound() {
+    if (editingRoundIndex === null) return;
+    const r = editingRoundIndex;
+    const errorEl = document.getElementById('modal-edit-error');
+
+    let valid = true;
+    const newScores = state.players.map((_, pi) => {
+      const input = document.getElementById(`edit-score-${pi}`);
+      const val = parseInt(input.value, 10);
+      if (isNaN(val) || val < 0) {
+        input.classList.add('error');
+        valid = false;
+        return 0;
+      }
+      input.classList.remove('error');
+      return val;
+    });
+
+    if (!valid) {
+      errorEl.textContent = 'Fyll inn gyldige poeng (0 eller mer) for alle spillere.';
+      errorEl.style.display = '';
+      return;
+    }
+
+    errorEl.style.display = 'none';
+
+    state.rounds[r] = newScores;
+    state.roundLevelCleared[r] = state.players.map((_, pi) =>
+      document.getElementById(`edit-cleared-${pi}`).checked
+    );
+
+    recalculateLevels();
+    saveState();
+    hideEditModal();
+    renderRound();
+  }
+
+  // ── Confirm modal ────────────────────────────────────
+  function showConfirmModal() {
+    document.getElementById('modal-confirm').classList.add('open');
+    document.getElementById('modal-yes').focus();
+  }
+
+  function hideConfirmModal() {
+    document.getElementById('modal-confirm').classList.remove('open');
+  }
+
+  // ── Event Binding ────────────────────────────────────
+  function bindEvents() {
+    // Setup: stepper
+    document.getElementById('players-dec').addEventListener('click', () => {
+      if (state.playerCount > MIN_PLAYERS) {
+        state.playerCount--;
+        renderSetup();
+      }
+    });
+    document.getElementById('players-inc').addEventListener('click', () => {
+      if (state.playerCount < MAX_PLAYERS) {
+        state.playerCount++;
+        renderSetup();
+      }
+    });
+
+    // Setup: start
+    document.getElementById('btn-start-game').addEventListener('click', startGame);
+
+    // Round: submit
+    document.getElementById('btn-submit-round').addEventListener('click', submitRound);
+
+    // Round: new game
+    document.getElementById('btn-new-game-round').addEventListener('click', showConfirmModal);
+
+    // Confirm modal
+    document.getElementById('modal-yes').addEventListener('click', () => {
+      hideConfirmModal();
+      resetGame();
+    });
+    document.getElementById('modal-no').addEventListener('click', hideConfirmModal);
+    document.getElementById('modal-confirm').addEventListener('click', e => {
+      if (e.target === e.currentTarget) hideConfirmModal();
+    });
+
+    // Edit modal
+    document.getElementById('modal-edit-save').addEventListener('click', saveEditedRound);
+    document.getElementById('modal-edit-cancel').addEventListener('click', hideEditModal);
+    document.getElementById('modal-edit').addEventListener('click', e => {
+      if (e.target === e.currentTarget) hideEditModal();
+    });
+
+    // Escape closes any open modal
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        hideEditModal();
+        hideConfirmModal();
+      }
+    });
+  }
+
+  // ── Init ─────────────────────────────────────────────
+  function init() {
+    document.getElementById('version-display').textContent = `v${VERSION}`;
+    document.getElementById('version-display-round').textContent = `v${VERSION}`;
+    bindEvents();
+    const saved = loadSavedState();
+    if (saved) {
+      state = { ...defaultState(), ...saved };
+      if (state.players.length >= MIN_PLAYERS) {
+        state.playerCount = state.players.length;
+      }
+      const savedView = state.view === 'standings' ? 'round' : (state.view || 'setup');
+      showView(savedView);
+    } else {
+      showView('setup');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+
+<!-- PWA: Service Worker -->
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .then(() => console.log("PWA klar 🚀"))
+      .catch(err => console.log("SW error:", err));
+  });
+}
+</script>
+
 </body>
 </html>
