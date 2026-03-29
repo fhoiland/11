@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>11-ern</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #F5F0E8;
+      --surface: #FFFFFF;
+      --primary: #2C5F2E;
+      --primary-dark: #1e4320;
+      --danger: #8B2020;
+      --text: #1A1A1A;
+      --text-muted: #6B6B6B;
+      --border: #D4C9B0;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Views ─────────────────────────────── */
+    .view { display: none; flex-direction: column; flex: 1; }
+    .view.active { display: flex; }
+
+    /* ── Header ─────────────────────────────── */
+    .app-header {
+      background: var(--primary);
+      color: #fff;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .app-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .app-header .subtitle {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+    .header-right { display: flex; align-items: center; gap: 0.5rem; }
+
+    /* ── Main content ─────────────────────── */
+    .view-main {
+      flex: 1;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* ── Footer ─────────────────────────────── */
+    .view-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    /* ── Buttons ─────────────────────────────── */
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 1rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      min-height: 44px;
+      padding: 0.5rem 1rem;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    button:active { opacity: 0.8; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      width: 100%;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      font-size: 0.875rem;
+      min-height: 36px;
+      padding: 0.375rem 0.75rem;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.3); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      text-align: center;
+      width: 100%;
+      min-height: 36px;
+    }
+    .btn-ghost:hover { background: var(--border); }
+
+    /* ── Inputs ─────────────────────────────── */
+    input[type="text"], input[type="number"] {
+      font-family: inherit;
+      font-size: 1rem;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.625rem 0.75rem;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--primary); }
+    input.error { border-color: var(--danger); }
+
+    .field-error {
+      font-size: 0.8rem;
+      color: var(--danger);
+      margin-top: 0.25rem;
+    }
+
+    /* ── Setup view ─────────────────────────── */
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .stepper {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      width: fit-content;
+    }
+    .stepper button {
+      background: transparent;
+      color: var(--primary);
+      font-size: 1.5rem;
+      font-weight: 400;
+      width: 52px;
+      min-height: 52px;
+      border-radius: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .stepper button:hover { background: var(--bg); }
+    .stepper-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      min-width: 52px;
+      text-align: center;
+      padding: 0 0.25rem;
+    }
+
+    .player-name-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .player-name-row {
+      display: flex;
+      flex-direction: column;
+    }
+    .player-name-row label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+    .player-name-row input { width: 100%; }
+
+    /* ── Round entry view ─────────────────────── */
+    .round-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .round-badge {
+      font-size: 0.875rem;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .player-score-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .player-score-row {
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      border: 1px solid var(--border);
+    }
+    .player-score-row .player-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .player-score-row .player-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-score-row .player-total {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .player-score-row .score-input {
+      width: 80px;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 600;
+      padding: 0.5rem;
+      flex-shrink: 0;
+    }
+    /* hide number spinners */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    /* ── Standings view ─────────────────────── */
+    .standings-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .standing-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem 1rem;
+      display: grid;
+      grid-template-columns: 2rem 1fr auto;
+      align-items: center;
+      gap: 0.5rem;
+      border-left: 4px solid transparent;
+    }
+    .standing-row.rank-first { border-left-color: var(--primary); }
+    .standing-row.rank-last  { border-left-color: var(--danger); }
+    .standing-rank {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .standing-row.rank-first .standing-rank { color: var(--primary); }
+    .standing-row.rank-last  .standing-rank { color: var(--danger); }
+    .standing-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .standing-score {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .standing-row.rank-first .standing-score { color: var(--primary); }
+    .standing-row.rank-last  .standing-score { color: var(--danger); }
+
+    /* ── Round history ─────────────────────── */
+    .history-toggle-btn {
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      width: auto;
+      min-height: 32px;
+      padding: 0.25rem 0;
+      text-decoration: underline;
+      text-align: left;
+    }
+    .history-toggle-btn:hover { color: var(--text); background: transparent; }
+
+    .history-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .history-table th,
+    .history-table td {
+      padding: 0.5rem 0.75rem;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .history-table th:first-child,
+    .history-table td:first-child { text-align: left; }
+    .history-table th {
+      background: var(--bg);
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .history-table tr:last-child td { border-bottom: none; }
+    .history-table .totals-row td {
+      font-weight: 700;
+      border-top: 2px solid var(--border);
+    }
+    .history-table .totals-row td:first-child { color: var(--text-muted); }
+
+    /* ── Modal ─────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 1.25rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 320px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .modal-box p { font-size: 1rem; line-height: 1.4; }
+    .modal-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+      font-weight: 600;
+      width: 100%;
+      min-height: 44px;
+    }
+    .btn-danger:hover { background: #6e1a1a; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- VIEW 1: Setup -->
+  <div id="view-setup" class="view">
+    <div class="app-header">
+      <div>
+        <h1>11-ern</h1>
+        <p class="subtitle">Nytt spill</p>
+      </div>
+    </div>
+    <div class="view-main">
+      <div>
+        <p class="section-label">Antall spillere</p>
+        <div class="stepper">
+          <button id="players-dec" aria-label="Færre spillere">−</button>
+          <span class="stepper-value" id="player-count-display">4</span>
+          <button id="players-inc" aria-label="Flere spillere">+</button>
+        </div>
+      </div>
+      <div>
+        <p class="section-label">Spillernavn</p>
+        <div class="player-name-list" id="player-name-list"></div>
+      </div>
+      <button class="btn-primary" id="btn-start-game">Start spill</button>
+    </div>
+  </div>
+
+  <!-- VIEW 2: Round Entry -->
+  <div id="view-round" class="view">
+    <div class="app-header">
+      <h1>11-ern</h1>
+      <div class="header-right">
+        <span class="round-badge" id="round-badge">Runde 1</span>
+        <button class="btn-secondary" id="btn-view-standings">Stilling</button>
+      </div>
+    </div>
+    <div class="view-main">
+      <p class="section-label">Poeng denne runden</p>
+      <div class="player-score-list" id="player-score-list"></div>
+      <div id="round-submit-error" class="field-error" style="display:none"></div>
+      <button class="btn-primary" id="btn-submit-round">Registrer runde</button>
+    </div>
+    <div class="view-footer">
+      <button class="btn-ghost" id="btn-new-game-round">Nytt spill</button>
+    </div>
+  </div>
+
+  <!-- VIEW 3: Standings -->
+  <div id="view-standings" class="view">
+    <div class="app-header">
+      <div>
+        <h1>11-ern</h1>
+        <p class="subtitle" id="standings-subtitle">Stilling</p>
+      </div>
+    </div>
+    <div class="view-main">
+      <ol class="standings-list" id="standings-list"></ol>
+
+      <div id="history-section" style="display:none">
+        <button class="history-toggle-btn" id="btn-toggle-history">Vis rundehistorikk</button>
+        <div class="history-wrapper" id="history-wrapper" style="display:none">
+          <table class="history-table" id="history-table"></table>
+        </div>
+      </div>
+    </div>
+    <div class="view-footer">
+      <button class="btn-primary" id="btn-next-round">Neste runde</button>
+      <button class="btn-ghost" id="btn-new-game-standings">Nytt spill</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Confirmation modal -->
+<div class="modal-overlay" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-text">
+  <div class="modal-box">
+    <p id="modal-text">Start nytt spill? Nåværende spill vil bli slettet.</p>
+    <div class="modal-actions">
+      <button class="btn-danger" id="modal-yes">Ja, start nytt spill</button>
+      <button class="btn-ghost" id="modal-no">Avbryt</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Constants ───────────────────────────────────────
+  const STORAGE_KEY = '11ern_state';
+  const MIN_PLAYERS = 2;
+  const MAX_PLAYERS = 8;
+
+  // ── State ───────────────────────────────────────────
+  let state = defaultState();
+
+  function defaultState() {
+    return {
+      view: 'setup',
+      playerCount: 4,       // only used in setup
+      players: [],          // [{ name }]
+      rounds: [],           // [[score0, score1, ...], ...]
+    };
+  }
+
+  // ── Persistence ─────────────────────────────────────
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+  }
+
+  function loadSavedState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.players) || s.players.length < MIN_PLAYERS) return null;
+      return s;
+    } catch { return null; }
+  }
+
+  // ── Computation ─────────────────────────────────────
+  function getTotals() {
+    return state.players.map((_, i) =>
+      state.rounds.reduce((sum, round) => sum + (round[i] ?? 0), 0)
+    );
+  }
+
+  function getSortedStandings() {
+    const totals = getTotals();
+    return state.players
+      .map((p, i) => ({ name: p.name, total: totals[i], idx: i }))
+      .sort((a, b) => a.total - b.total);
+  }
+
+  // ── Navigation ──────────────────────────────────────
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + viewId).classList.add('active');
+    state.view = viewId;
+    saveState();
+    renders[viewId]();
+  }
+
+  // ── Render: Setup ───────────────────────────────────
+  function renderSetup() {
+    document.getElementById('player-count-display').textContent = state.playerCount;
+    const list = document.getElementById('player-name-list');
+    const existing = list.querySelectorAll('input');
+    const oldValues = Array.from(existing).map(el => el.value);
+
+    list.innerHTML = '';
+    for (let i = 0; i < state.playerCount; i++) {
+      const row = document.createElement('div');
+      row.className = 'player-name-row';
+      const label = document.createElement('label');
+      label.textContent = `Spiller ${i + 1}`;
+      label.htmlFor = `pname-${i}`;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `pname-${i}`;
+      input.placeholder = `Spiller ${i + 1}`;
+      input.value = oldValues[i] ?? '';
+      input.autocomplete = 'off';
+      row.appendChild(label);
+      row.appendChild(input);
+      list.appendChild(row);
+    }
+  }
+
+  // ── Render: Round ───────────────────────────────────
+  function renderRound() {
+    const roundNum = state.rounds.length + 1;
+    document.getElementById('round-badge').textContent = `Runde ${roundNum}`;
+    document.getElementById('round-submit-error').style.display = 'none';
+
+    const totals = getTotals();
+    const list = document.getElementById('player-score-list');
+    list.innerHTML = '';
+
+    state.players.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'player-score-row';
+
+      const info = document.createElement('div');
+      info.className = 'player-info';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'player-name';
+      nameEl.textContent = p.name;
+      const totalEl = document.createElement('div');
+      totalEl.className = 'player-total';
+      totalEl.textContent = roundNum > 1 ? `Total: ${totals[i]}` : '';
+      info.appendChild(nameEl);
+      info.appendChild(totalEl);
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.inputMode = 'numeric';
+      input.className = 'score-input';
+      input.dataset.playerIndex = i;
+      input.value = '';
+      input.placeholder = '0';
+      input.min = '0';
+
+      row.appendChild(info);
+      row.appendChild(input);
+      list.appendChild(row);
+    });
+
+    // Keyboard navigation: Enter advances to next input or submits
+    const inputs = list.querySelectorAll('.score-input');
+    inputs.forEach((input, i) => {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (i < inputs.length - 1) inputs[i + 1].focus();
+          else submitRound();
+        }
+      });
+    });
+
+    if (inputs.length > 0) inputs[0].focus();
+  }
+
+  // ── Render: Standings ───────────────────────────────
+  function renderStandings() {
+    const rounds = state.rounds.length;
+    document.getElementById('standings-subtitle').textContent =
+      rounds === 0 ? 'Ingen runder ennå' : `Etter runde ${rounds}`;
+
+    const sorted = getSortedStandings();
+    const list = document.getElementById('standings-list');
+    list.innerHTML = '';
+
+    sorted.forEach((entry, pos) => {
+      const li = document.createElement('li');
+      li.className = 'standing-row';
+      if (pos === 0) li.classList.add('rank-first');
+      if (pos === sorted.length - 1 && sorted.length > 1) li.classList.add('rank-last');
+
+      const rankEl = document.createElement('span');
+      rankEl.className = 'standing-rank';
+      rankEl.textContent = pos + 1;
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'standing-name';
+      nameEl.textContent = entry.name;
+
+      const scoreEl = document.createElement('span');
+      scoreEl.className = 'standing-score';
+      scoreEl.textContent = entry.total;
+
+      li.appendChild(rankEl);
+      li.appendChild(nameEl);
+      li.appendChild(scoreEl);
+      list.appendChild(li);
+    });
+
+    // Round history
+    const historySection = document.getElementById('history-section');
+    if (rounds === 0) {
+      historySection.style.display = 'none';
+      return;
+    }
+    historySection.style.display = '';
+    renderHistoryTable();
+  }
+
+  function renderHistoryTable() {
+    const table = document.getElementById('history-table');
+    table.innerHTML = '';
+
+    // Header row
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    const thRound = document.createElement('th');
+    thRound.textContent = 'Runde';
+    headerRow.appendChild(thRound);
+    state.players.forEach(p => {
+      const th = document.createElement('th');
+      th.textContent = p.name;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    // Body rows
+    const tbody = document.createElement('tbody');
+    state.rounds.forEach((round, ri) => {
+      const tr = document.createElement('tr');
+      const tdLabel = document.createElement('td');
+      tdLabel.textContent = ri + 1;
+      tr.appendChild(tdLabel);
+      round.forEach(score => {
+        const td = document.createElement('td');
+        td.textContent = score;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    // Totals row
+    const totals = getTotals();
+    const trTotals = document.createElement('tr');
+    trTotals.className = 'totals-row';
+    const tdTotalLabel = document.createElement('td');
+    tdTotalLabel.textContent = 'Total';
+    trTotals.appendChild(tdTotalLabel);
+    totals.forEach(t => {
+      const td = document.createElement('td');
+      td.textContent = t;
+      trTotals.appendChild(td);
+    });
+    tbody.appendChild(trTotals);
+
+    table.appendChild(tbody);
+  }
+
+  const renders = { setup: renderSetup, round: renderRound, standings: renderStandings };
+
+  // ── Actions ─────────────────────────────────────────
+  function startGame() {
+    const inputs = document.querySelectorAll('#player-name-list input');
+    let valid = true;
+    const names = [];
+    inputs.forEach(input => {
+      const val = input.value.trim();
+      if (!val) {
+        input.classList.add('error');
+        valid = false;
+      } else {
+        input.classList.remove('error');
+        names.push(val);
+      }
+    });
+    if (!valid) return;
+
+    state.players = names.map(name => ({ name }));
+    state.rounds = [];
+    saveState();
+    showView('round');
+  }
+
+  function submitRound() {
+    const inputs = document.querySelectorAll('#player-score-list .score-input');
+    const errorEl = document.getElementById('round-submit-error');
+    const scores = [];
+    let valid = true;
+
+    inputs.forEach(input => {
+      const raw = input.value.trim();
+      if (raw === '') {
+        input.classList.add('error');
+        valid = false;
+      } else {
+        const n = parseInt(raw, 10);
+        if (isNaN(n) || n < 0) {
+          input.classList.add('error');
+          valid = false;
+        } else {
+          input.classList.remove('error');
+          scores.push(n);
+        }
+      }
+    });
+
+    if (!valid) {
+      errorEl.textContent = 'Fyll inn poeng (0 eller mer) for alle spillere.';
+      errorEl.style.display = '';
+      return;
+    }
+
+    errorEl.style.display = 'none';
+    state.rounds.push(scores);
+    saveState();
+    showView('standings');
+  }
+
+  function resetGame() {
+    state = defaultState();
+    saveState();
+    showView('setup');
+  }
+
+  // ── Modal ───────────────────────────────────────────
+  function showConfirmModal() {
+    document.getElementById('modal-confirm').classList.add('open');
+    document.getElementById('modal-yes').focus();
+  }
+
+  function hideConfirmModal() {
+    document.getElementById('modal-confirm').classList.remove('open');
+  }
+
+  // ── Event Binding ────────────────────────────────────
+  function bindEvents() {
+    // Setup: stepper
+    document.getElementById('players-dec').addEventListener('click', () => {
+      if (state.playerCount > MIN_PLAYERS) {
+        state.playerCount--;
+        renderSetup();
+      }
+    });
+    document.getElementById('players-inc').addEventListener('click', () => {
+      if (state.playerCount < MAX_PLAYERS) {
+        state.playerCount++;
+        renderSetup();
+      }
+    });
+
+    // Setup: start
+    document.getElementById('btn-start-game').addEventListener('click', startGame);
+
+    // Round: submit
+    document.getElementById('btn-submit-round').addEventListener('click', submitRound);
+
+    // Round: view standings without submitting
+    document.getElementById('btn-view-standings').addEventListener('click', () => showView('standings'));
+
+    // Round: new game
+    document.getElementById('btn-new-game-round').addEventListener('click', showConfirmModal);
+
+    // Standings: next round
+    document.getElementById('btn-next-round').addEventListener('click', () => showView('round'));
+
+    // Standings: new game
+    document.getElementById('btn-new-game-standings').addEventListener('click', showConfirmModal);
+
+    // Standings: history toggle
+    document.getElementById('btn-toggle-history').addEventListener('click', () => {
+      const wrapper = document.getElementById('history-wrapper');
+      const btn = document.getElementById('btn-toggle-history');
+      const hidden = wrapper.style.display === 'none';
+      wrapper.style.display = hidden ? '' : 'none';
+      btn.textContent = hidden ? 'Skjul rundehistorikk' : 'Vis rundehistorikk';
+    });
+
+    // Modal
+    document.getElementById('modal-yes').addEventListener('click', () => {
+      hideConfirmModal();
+      resetGame();
+    });
+    document.getElementById('modal-no').addEventListener('click', hideConfirmModal);
+    document.getElementById('modal-confirm').addEventListener('click', e => {
+      if (e.target === e.currentTarget) hideConfirmModal();
+    });
+  }
+
+  // ── Init ─────────────────────────────────────────────
+  function init() {
+    bindEvents();
+    const saved = loadSavedState();
+    if (saved) {
+      state = { ...defaultState(), ...saved };
+      // Ensure playerCount is set from saved players
+      if (state.players.length >= MIN_PLAYERS) {
+        state.playerCount = state.players.length;
+      }
+      showView(state.view || 'setup');
+    } else {
+      showView('setup');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
