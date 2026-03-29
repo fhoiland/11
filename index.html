@@ -279,12 +279,6 @@
     }
     .standing-row.rank-first .standing-rank { color: var(--primary); }
     .standing-row.rank-last  .standing-rank { color: var(--danger); }
-    .standing-name {
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
     .standing-score {
       font-size: 1.25rem;
       font-weight: 700;
@@ -340,6 +334,101 @@
       border-top: 2px solid var(--border);
     }
     .history-table .totals-row td:first-child { color: var(--text-muted); }
+
+    /* ── Level info in round entry ─────────── */
+    .player-level-info {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+    .level-cleared-label {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.875rem;
+      margin-top: 0.4rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .level-cleared-check {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* ── Level info in standings ────────────── */
+    .standing-name-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .standing-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .standing-level {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Nivå-oversikt section ──────────────── */
+    .level-overview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .level-overview-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .level-overview-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 0.75rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .level-overview-row:last-child { border-bottom: none; }
+    .level-overview-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .level-overview-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+    }
+    .level-overview-badge {
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      align-self: center;
+    }
+    .level-overview-badge.level-done {
+      background: var(--text-muted);
+    }
 
     /* ── Modal ─────────────────────────────── */
     .modal-overlay {
@@ -438,6 +527,8 @@
     <div class="view-main">
       <ol class="standings-list" id="standings-list"></ol>
 
+      <div id="level-overview-section"></div>
+
       <div id="history-section" style="display:none">
         <button class="history-toggle-btn" id="btn-toggle-history">Vis rundehistorikk</button>
         <div class="history-wrapper" id="history-wrapper" style="display:none">
@@ -469,6 +560,19 @@
   const STORAGE_KEY = '11ern_state';
   const MIN_PLAYERS = 2;
   const MAX_PLAYERS = 8;
+  const LEVELS = [
+    { n: 1,  desc: 'Serie på 4',           trump: 0 },
+    { n: 2,  desc: 'Tress 2 ganger',       trump: 1 },
+    { n: 3,  desc: 'Serie på 4 + tress',   trump: 1 },
+    { n: 4,  desc: 'Serie på 5',           trump: 2 },
+    { n: 5,  desc: 'Tress 3 ganger',       trump: 2 },
+    { n: 6,  desc: 'Serie på 5 + tress',   trump: 2 },
+    { n: 7,  desc: 'Serie på 7',           trump: 2 },
+    { n: 8,  desc: 'Serie på 6 + tress',   trump: 3 },
+    { n: 9,  desc: 'Serie på 4, 2 ganger', trump: 2 },
+    { n: 10, desc: '5 like 2 ganger',      trump: 4 },
+    { n: 11, desc: 'Serie på 9',           trump: 4 },
+  ];
 
   // ── State ───────────────────────────────────────────
   let state = defaultState();
@@ -479,6 +583,7 @@
       playerCount: 4,       // only used in setup
       players: [],          // [{ name }]
       rounds: [],           // [[score0, score1, ...], ...]
+      playerLevels: [],     // [1, 2, ...] — current level (1-11) per player
     };
   }
 
@@ -493,6 +598,10 @@
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (!s || !Array.isArray(s.players) || s.players.length < MIN_PLAYERS) return null;
+      // Backwards compat: populate playerLevels if missing
+      if (!Array.isArray(s.playerLevels) || s.playerLevels.length !== s.players.length) {
+        s.playerLevels = new Array(s.players.length).fill(1);
+      }
       return s;
     } catch { return null; }
   }
@@ -562,14 +671,36 @@
 
       const info = document.createElement('div');
       info.className = 'player-info';
+
       const nameEl = document.createElement('div');
       nameEl.className = 'player-name';
       nameEl.textContent = p.name;
+
       const totalEl = document.createElement('div');
       totalEl.className = 'player-total';
       totalEl.textContent = roundNum > 1 ? `Total: ${totals[i]}` : '';
+
+      const lvl = LEVELS[(state.playerLevels[i] ?? 1) - 1];
+      const levelInfoEl = document.createElement('div');
+      levelInfoEl.className = 'player-level-info';
+      levelInfoEl.textContent = `Nivå ${lvl.n}: ${lvl.desc} · maks ${lvl.trump} trumf`;
+
+      const clearedId = `cleared-${i}`;
+      const clearedLabel = document.createElement('label');
+      clearedLabel.className = 'level-cleared-label';
+      clearedLabel.htmlFor = clearedId;
+      const clearedCheck = document.createElement('input');
+      clearedCheck.type = 'checkbox';
+      clearedCheck.className = 'level-cleared-check';
+      clearedCheck.id = clearedId;
+      const clearedText = document.createTextNode('Klarte nivået');
+      clearedLabel.appendChild(clearedCheck);
+      clearedLabel.appendChild(clearedText);
+
       info.appendChild(nameEl);
       info.appendChild(totalEl);
+      info.appendChild(levelInfoEl);
+      info.appendChild(clearedLabel);
 
       const input = document.createElement('input');
       input.type = 'number';
@@ -620,19 +751,31 @@
       rankEl.className = 'standing-rank';
       rankEl.textContent = pos + 1;
 
+      const nameGroup = document.createElement('div');
+      nameGroup.className = 'standing-name-group';
       const nameEl = document.createElement('span');
       nameEl.className = 'standing-name';
       nameEl.textContent = entry.name;
+      const playerLevel = state.playerLevels[entry.idx] ?? 1;
+      const lvl = LEVELS[playerLevel - 1];
+      const levelEl = document.createElement('span');
+      levelEl.className = 'standing-level';
+      levelEl.textContent = `Nivå ${lvl.n}: ${lvl.desc}`;
+      nameGroup.appendChild(nameEl);
+      nameGroup.appendChild(levelEl);
 
       const scoreEl = document.createElement('span');
       scoreEl.className = 'standing-score';
       scoreEl.textContent = entry.total;
 
       li.appendChild(rankEl);
-      li.appendChild(nameEl);
+      li.appendChild(nameGroup);
       li.appendChild(scoreEl);
       list.appendChild(li);
     });
+
+    // Nivå-oversikt
+    renderLevelOverview();
 
     // Round history
     const historySection = document.getElementById('history-section');
@@ -694,6 +837,52 @@
     table.appendChild(tbody);
   }
 
+  function renderLevelOverview() {
+    const section = document.getElementById('level-overview-section');
+    section.innerHTML = '';
+
+    const container = document.createElement('div');
+    container.className = 'level-overview';
+
+    const header = document.createElement('div');
+    header.className = 'level-overview-header';
+    header.textContent = 'Nivåoversikt';
+    container.appendChild(header);
+
+    // Sort by level descending (highest level first), then by name
+    const sorted = state.players
+      .map((p, i) => ({ name: p.name, level: state.playerLevels[i] ?? 1 }))
+      .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+
+    sorted.forEach(entry => {
+      const lvl = LEVELS[entry.level - 1];
+      const done = entry.level >= LEVELS.length;
+
+      const row = document.createElement('div');
+      row.className = 'level-overview-row';
+
+      const leftCol = document.createElement('div');
+      const nameEl = document.createElement('div');
+      nameEl.className = 'level-overview-name';
+      nameEl.textContent = entry.name;
+      const descEl = document.createElement('div');
+      descEl.className = 'level-overview-desc';
+      descEl.textContent = `${lvl.desc} · maks ${lvl.trump} trumf`;
+      leftCol.appendChild(nameEl);
+      leftCol.appendChild(descEl);
+
+      const badge = document.createElement('span');
+      badge.className = 'level-overview-badge' + (done ? ' level-done' : '');
+      badge.textContent = done ? `Nivå ${lvl.n} ✓` : `Nivå ${lvl.n}`;
+
+      row.appendChild(leftCol);
+      row.appendChild(badge);
+      container.appendChild(row);
+    });
+
+    section.appendChild(container);
+  }
+
   const renders = { setup: renderSetup, round: renderRound, standings: renderStandings };
 
   // ── Actions ─────────────────────────────────────────
@@ -715,6 +904,7 @@
 
     state.players = names.map(name => ({ name }));
     state.rounds = [];
+    state.playerLevels = new Array(names.length).fill(1);
     saveState();
     showView('round');
   }
@@ -750,6 +940,15 @@
 
     errorEl.style.display = 'none';
     state.rounds.push(scores);
+
+    // Advance levels for players who cleared their level
+    const clearedChecks = document.querySelectorAll('.level-cleared-check');
+    clearedChecks.forEach((cb, i) => {
+      if (cb.checked && (state.playerLevels[i] ?? 1) < LEVELS.length) {
+        state.playerLevels[i]++;
+      }
+    });
+
     saveState();
     showView('standings');
   }
