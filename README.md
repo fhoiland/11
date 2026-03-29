@@ -41,6 +41,8 @@ En selvinneholdt HTML-app (ingen avhengigheter, ingen byggsteg) for å registrer
 | v1.1.0 | Nivåsystem med 11 nivåer og «Klarte nivået»-avkrysning |
 | v1.2.0 | Stillingssiden fjernet; spillere sortert etter poengsum i rundebildet |
 | v1.3.0 | Rundehistorikk-panel og redigering av tidligere runder |
+| v1.4.0 | PWA-støtte: manifest, service worker og offline-caching |
+| v1.5.0 | Rangering i rundebildet, slett runde og vinnerskjerm |
 
 ## Bruk
 

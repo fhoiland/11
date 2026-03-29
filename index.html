@@ -6,10 +6,6 @@
   <meta name="theme-color" content="#2C5F2E">
   <link rel="manifest" href="manifest.json">
   <title>11-ern</title>
-  <!-- PWA -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#2C5F2E">
-  <title>11-ern</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -264,6 +260,20 @@
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
     input[type=number] { -moz-appearance: textfield; }
 
+    /* ── Rank badges in round entry ─────────── */
+    .player-rank {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      width: 1.75rem;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .player-score-row.rank-first { border-left: 3px solid var(--primary); }
+    .player-score-row.rank-last  { border-left: 3px solid var(--danger); }
+    .player-score-row.rank-first .player-rank { color: var(--primary); }
+    .player-score-row.rank-last  .player-rank { color: var(--danger); }
+
     /* ── Level info in round entry ─────────── */
     .player-level-info {
       font-size: 0.8rem;
@@ -496,6 +506,11 @@
       min-height: 44px;
     }
     .btn-danger:hover { background: #6e1a1a; }
+
+    /* ── Winner modal ───────────────────────── */
+    .winner-emoji { font-size: 3rem; margin-bottom: 0.5rem; }
+    .winner-name  { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+    .winner-sub   { font-size: 0.9rem; color: var(--text-muted); margin-top: 0.25rem; }
   </style>
 </head>
 <body>
@@ -574,13 +589,25 @@
     <div class="modal-actions">
       <button class="btn-primary" id="modal-edit-save">Lagre endringer</button>
       <button class="btn-ghost" id="modal-edit-cancel">Avbryt</button>
+      <button class="btn-danger" id="modal-edit-delete">Slett runde</button>
+    </div>
+  </div>
+</div>
+
+<!-- Winner modal -->
+<div class="modal-overlay" id="modal-winner" role="dialog" aria-modal="true">
+  <div class="modal-box" style="text-align:center">
+    <div id="winner-content"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="winner-continue">Fortsett spillet</button>
+      <button class="btn-ghost" id="winner-new-game">Nytt spill</button>
     </div>
   </div>
 </div>
 
 <script>
   // ── Constants ───────────────────────────────────────
-  const VERSION = '1.4.0';
+  const VERSION = '1.5.0';
   const STORAGE_KEY = '11ern_state';
   const MIN_PLAYERS = 2;
   const MAX_PLAYERS = 8;
@@ -705,10 +732,19 @@
     const list = document.getElementById('player-score-list');
     list.innerHTML = '';
 
-    sortedIndices.forEach(i => {
+    sortedIndices.forEach((i, pos) => {
       const p = state.players[i];
       const row = document.createElement('div');
       row.className = 'player-score-row';
+
+      if (roundNum > 1) {
+        if (pos === 0) row.classList.add('rank-first');
+        if (pos === sortedIndices.length - 1 && sortedIndices.length > 1) row.classList.add('rank-last');
+      }
+
+      const rankEl = document.createElement('div');
+      rankEl.className = 'player-rank';
+      rankEl.textContent = pos + 1;
 
       const info = document.createElement('div');
       info.className = 'player-info';
@@ -753,6 +789,7 @@
       input.placeholder = '0';
       input.min = '0';
 
+      row.appendChild(rankEl);
       row.appendChild(info);
       row.appendChild(input);
       list.appendChild(row);
@@ -919,12 +956,19 @@
       clearedThisRound[parseInt(cb.dataset.playerIndex, 10)] = cb.checked;
     });
 
+    const levelsBeforeSubmit = [...state.playerLevels];
+
     state.rounds.push(scores);
     state.roundLevelCleared.push(clearedThisRound);
     recalculateLevels();
-
     saveState();
+
+    const newWinners = state.players
+      .filter((_, i) => clearedThisRound[i] && levelsBeforeSubmit[i] === LEVELS.length)
+      .map(p => p.name);
+
     showView('round');
+    if (newWinners.length > 0) showWinnerModal(newWinners);
   }
 
   function resetGame() {
@@ -1024,6 +1068,27 @@
     renderRound();
   }
 
+  function deleteRound() {
+    if (editingRoundIndex === null) return;
+    const r = editingRoundIndex;
+    state.rounds.splice(r, 1);
+    state.roundLevelCleared.splice(r, 1);
+    recalculateLevels();
+    saveState();
+    hideEditModal();
+    renderRound();
+  }
+
+  // ── Winner modal ─────────────────────────────────────
+  function showWinnerModal(names) {
+    document.getElementById('winner-content').innerHTML = `
+      <div class="winner-emoji">🎉</div>
+      <div class="winner-name">${names.map(n => n.replace(/&/g,'&amp;').replace(/</g,'&lt;')).join(' &amp; ')}</div>
+      <div class="winner-sub">Fullførte alle 11 nivåer!</div>
+    `;
+    document.getElementById('modal-winner').classList.add('open');
+  }
+
   // ── Confirm modal ────────────────────────────────────
   function showConfirmModal() {
     document.getElementById('modal-confirm').classList.add('open');
@@ -1072,8 +1137,18 @@
     // Edit modal
     document.getElementById('modal-edit-save').addEventListener('click', saveEditedRound);
     document.getElementById('modal-edit-cancel').addEventListener('click', hideEditModal);
+    document.getElementById('modal-edit-delete').addEventListener('click', deleteRound);
     document.getElementById('modal-edit').addEventListener('click', e => {
       if (e.target === e.currentTarget) hideEditModal();
+    });
+
+    // Winner modal
+    document.getElementById('winner-continue').addEventListener('click', () => {
+      document.getElementById('modal-winner').classList.remove('open');
+    });
+    document.getElementById('winner-new-game').addEventListener('click', () => {
+      document.getElementById('modal-winner').classList.remove('open');
+      showConfirmModal();
     });
 
     // Escape closes any open modal
@@ -1081,6 +1156,7 @@
       if (e.key === 'Escape') {
         hideEditModal();
         hideConfirmModal();
+        document.getElementById('modal-winner').classList.remove('open');
       }
     });
   }
@@ -1110,16 +1186,6 @@
   document.addEventListener('DOMContentLoaded', init);
 </script>
 
-<!-- PWA: Service Worker -->
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js")
-      .then(() => console.log("PWA klar 🚀"))
-      .catch(err => console.log("SW error:", err));
-  });
-}
-</script>
 
 </body>
 </html>
