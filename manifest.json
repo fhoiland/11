@@ -1,20 +1,18 @@
 {
   "name": "11-ern",
   "short_name": "11-ern",
-  "start_url": ".",
+  "description": "Poengregistrering for kortspillet 11-ern",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F5F0E8",
   "theme_color": "#2C5F2E",
+  "lang": "no",
   "icons": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232C5F2E'/><text y='68' x='50' text-anchor='middle' font-size='52' font-family='sans-serif' fill='white'>11</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }
