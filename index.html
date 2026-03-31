@@ -267,14 +267,16 @@
       text-overflow: ellipsis;
     }
     .player-score-row .player-total {
-      font-size: 0.8rem;
-      color: var(--text-muted);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 0.1rem;
     }
     .player-score-row .score-input {
       width: 80px;
       text-align: center;
-      font-size: 1.25rem;
-      font-weight: 600;
+      font-size: 1.5rem;
+      font-weight: 700;
       padding: 0.5rem;
       flex-shrink: 0;
     }
@@ -297,12 +299,7 @@
     .player-score-row.rank-first .player-rank { color: var(--primary); }
     .player-score-row.rank-last  .player-rank { color: var(--danger); }
 
-    /* ── Level info in round entry ─────────── */
-    .player-level-info {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 0.15rem;
-    }
+    /* ── Level cleared checkbox ─────────────── */
     .level-cleared-label {
       display: flex;
       align-items: center;
@@ -768,7 +765,7 @@
 
 <script>
   // ── Constants ───────────────────────────────────────
-  const VERSION = '2.1.0';
+  const VERSION = '2.2.0';
   const STORAGE_KEY = '11ern_state';
   const HISTORY_KEY = '11ern_history';
   const THEME_KEY = '11ern_theme';
@@ -1044,12 +1041,7 @@
 
       const totalEl = document.createElement('div');
       totalEl.className = 'player-total';
-      totalEl.textContent = roundNum > 1 ? `Total: ${totals[i]}` : '';
-
-      const lvl = LEVELS[(state.playerLevels[i] ?? 1) - 1];
-      const levelInfoEl = document.createElement('div');
-      levelInfoEl.className = 'player-level-info';
-      levelInfoEl.textContent = `Nivå ${lvl.n}: ${lvl.desc} · maks ${lvl.trump} trumf`;
+      totalEl.textContent = roundNum > 1 ? `${totals[i]} poeng` : '';
 
       const clearedId = `cleared-${i}`;
       const clearedLabel = document.createElement('label');
@@ -1066,7 +1058,6 @@
 
       info.appendChild(nameEl);
       info.appendChild(totalEl);
-      info.appendChild(levelInfoEl);
       info.appendChild(clearedLabel);
 
       const input = document.createElement('input');
