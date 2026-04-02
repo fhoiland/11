@@ -1,0 +1,44 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "11-ern",
+  description = "Poengregistrering for kortspillet 11-ern, bygget med Astro og Tailwind CSS.",
+} = Astro.props;
+
+const manifestHref = `${import.meta.env.BASE_URL}manifest.json`;
+const themeBootstrap = `
+(() => {
+  const THEME_KEY = "11ern_theme";
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme =
+      saved ? saved : prefersDark ? "dark" : "light";
+  } catch {
+    document.documentElement.dataset.theme = "light";
+  }
+})();
+`;
+---
+
+<!doctype html>
+<html lang="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2C5F2E" />
+    <meta name="description" content={description} />
+    <link rel="manifest" href={manifestHref} />
+    <title>{title}</title>
+    <script is:inline set:html={themeBootstrap}></script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

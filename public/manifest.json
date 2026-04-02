@@ -2,10 +2,11 @@
   "name": "11-ern",
   "short_name": "11-ern",
   "description": "Poengregistrering for kortspillet 11-ern",
-  "start_url": "./index.html",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#F5F0E8",
-  "theme_color": "#2C5F2E",
+  "background_color": "#f5f0e8",
+  "theme_color": "#2c5f2e",
   "lang": "no",
   "icons": [
     {
