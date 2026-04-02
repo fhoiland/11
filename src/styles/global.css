@@ -103,7 +103,7 @@ input[type="number"] {
   background: var(--surface-strong);
   color: var(--text);
   border: 2px solid var(--border);
-  @apply w-full rounded-xl px-3 py-2.5 outline-none transition duration-150 ease-out;
+  @apply rounded-xl px-3 py-2.5 outline-none transition duration-150 ease-out;
 }
 
 input:focus {
@@ -229,6 +229,10 @@ input[type="number"] {
 .player-name-row label {
   @apply text-sm;
   color: var(--text-muted);
+}
+
+.player-name-row input {
+  @apply w-full;
 }
 
 .player-score-row,
