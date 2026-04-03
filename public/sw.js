@@ -1,16 +1,13 @@
-const CACHE = "11ern-v3.0.0";
-const CORE_ASSETS = ["./", "./manifest.json"];
+const CACHE = "11ern-v3.1.0";
+const CORE_ASSETS = ["./", "./index.html", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(CORE_ASSETS)),
+    caches
+      .open(CACHE)
+      .then((cache) => cache.addAll(CORE_ASSETS))
+      .then(() => self.skipWaiting()),
   );
-});
-
-self.addEventListener("message", (event) => {
-  if (event.data === "skipWaiting") {
-    self.skipWaiting();
-  }
 });
 
 self.addEventListener("activate", (event) => {

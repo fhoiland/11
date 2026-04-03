@@ -12,6 +12,28 @@
   --text-muted: #6b6b6b;
   --border: #d4c9b0;
   --shadow: 0 18px 45px rgba(28, 42, 22, 0.14);
+  --header-icon-bg: rgba(255, 255, 255, 0.1);
+  --header-icon-border: rgba(255, 255, 255, 0.5);
+}
+
+html[data-color="blue"] {
+  --primary: #1a5276;
+  --primary-dark: #154360;
+}
+
+html[data-color="purple"] {
+  --primary: #6c3483;
+  --primary-dark: #512e5f;
+}
+
+html[data-color="teal"] {
+  --primary: #0e6655;
+  --primary-dark: #0b5345;
+}
+
+html[data-color="red"] {
+  --primary: #922b21;
+  --primary-dark: #7b241c;
 }
 
 html[data-theme="dark"] {
@@ -26,6 +48,28 @@ html[data-theme="dark"] {
   --text-muted: #a1a18f;
   --border: #2e3e2e;
   --shadow: 0 22px 48px rgba(0, 0, 0, 0.34);
+  --header-icon-bg: rgba(255, 255, 255, 0.12);
+  --header-icon-border: rgba(255, 255, 255, 0.45);
+}
+
+html[data-theme="dark"][data-color="blue"] {
+  --primary: #2980b9;
+  --primary-dark: #1a5276;
+}
+
+html[data-theme="dark"][data-color="purple"] {
+  --primary: #8e44ad;
+  --primary-dark: #6c3483;
+}
+
+html[data-theme="dark"][data-color="teal"] {
+  --primary: #17a589;
+  --primary-dark: #0e6655;
+}
+
+html[data-theme="dark"][data-color="red"] {
+  --primary: #c0392b;
+  --primary-dark: #922b21;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -41,6 +85,28 @@ html[data-theme="dark"] {
     --text-muted: #a1a18f;
     --border: #2e3e2e;
     --shadow: 0 22px 48px rgba(0, 0, 0, 0.34);
+    --header-icon-bg: rgba(255, 255, 255, 0.12);
+    --header-icon-border: rgba(255, 255, 255, 0.45);
+  }
+
+  html:not([data-theme="light"])[data-color="blue"] {
+    --primary: #2980b9;
+    --primary-dark: #1a5276;
+  }
+
+  html:not([data-theme="light"])[data-color="purple"] {
+    --primary: #8e44ad;
+    --primary-dark: #6c3483;
+  }
+
+  html:not([data-theme="light"])[data-color="teal"] {
+    --primary: #17a589;
+    --primary-dark: #0e6655;
+  }
+
+  html:not([data-theme="light"])[data-color="red"] {
+    --primary: #c0392b;
+    --primary-dark: #922b21;
   }
 }
 
@@ -48,6 +114,7 @@ html[data-theme="dark"] {
 *::before,
 *::after {
   box-sizing: border-box;
+  touch-action: manipulation;
 }
 
 html,
@@ -425,6 +492,32 @@ input[type="number"] {
   @apply flex flex-col gap-1 text-sm;
 }
 
+.past-game-row-header {
+  @apply flex items-start justify-between gap-2;
+}
+
+.past-game-arrow {
+  @apply shrink-0 text-base transition duration-200 ease-out;
+  color: var(--text-muted);
+}
+
+.past-game-row.open .past-game-arrow {
+  transform: rotate(90deg);
+}
+
+.past-game-detail {
+  border-top: 1px solid var(--border);
+  @apply mt-2 hidden pt-2;
+}
+
+.past-game-row.open .past-game-detail {
+  @apply block;
+}
+
+.past-game-score-line {
+  @apply flex items-center justify-between gap-3 py-0.5 text-[0.82rem];
+}
+
 .past-game-meta {
   @apply text-xs;
   color: var(--text-muted);
@@ -439,10 +532,11 @@ input[type="number"] {
 .btn-ghost,
 .btn-danger,
 .btn-secondary,
-#btn-update-app,
 .btn-edit-round,
 .btn-clear-history,
-.btn-theme-toggle {
+.btn-settings,
+.theme-btn,
+.color-swatch {
   @apply rounded-xl;
 }
 
@@ -515,12 +609,23 @@ input[type="number"] {
   background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
-.btn-theme-toggle {
-  @apply inline-flex size-9 items-center justify-center bg-white/10 p-0 text-lg text-white;
+.btn-settings {
+  background: var(--header-icon-bg);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  @apply inline-flex size-9 items-center justify-center p-0 text-base text-white;
 }
 
-.btn-theme-toggle:hover {
+.btn-settings:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+#btn-rules {
+  border: 2px solid var(--header-icon-border);
+  @apply text-sm font-bold;
+}
+
+#btn-rules:hover {
+  border-color: rgba(255, 255, 255, 0.9);
 }
 
 .modal-overlay {
@@ -541,6 +646,10 @@ input[type="number"] {
 
 .modal-box-centered {
   @apply text-center;
+}
+
+.modal-title {
+  @apply text-[1.05rem] font-bold;
 }
 
 .modal-actions {
@@ -578,23 +687,117 @@ input[type="number"] {
   color: var(--text-muted);
 }
 
-#update-banner {
-  background: linear-gradient(135deg, var(--primary-dark), var(--primary));
-  box-shadow: var(--shadow);
-  @apply fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-[28rem] -translate-x-1/2 items-center gap-3 rounded-2xl px-4 py-3 text-sm text-white;
+#modal-changelog-body {
+  @apply flex flex-col;
 }
 
-#update-banner span {
-  @apply flex-1;
+.changelog-version {
+  @apply mt-3 text-[0.78rem] font-bold uppercase tracking-[0.18em];
+  color: var(--text-muted);
 }
 
-#btn-update-app {
-  @apply min-h-9 bg-white px-3 py-1.5 text-sm font-bold;
-  color: var(--primary-dark);
+.changelog-version:first-child {
+  @apply mt-0;
 }
 
-#btn-update-app:hover {
-  background: color-mix(in srgb, white 85%, var(--bg));
+.changelog-list {
+  @apply mt-1 list-disc pl-5 text-sm;
+}
+
+.changelog-list li + li {
+  @apply mt-1;
+}
+
+.rules-section {
+  @apply flex flex-col gap-1.5;
+}
+
+.rules-heading {
+  @apply text-[0.78rem] font-bold uppercase tracking-[0.16em];
+  color: var(--text-muted);
+}
+
+.rules-text,
+.rules-list {
+  @apply text-sm leading-6;
+}
+
+.rules-list {
+  @apply pl-5;
+}
+
+.rules-score-copy {
+  @apply mb-1;
+}
+
+.rules-score-grid {
+  @apply grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm;
+}
+
+.rules-score-grid .score-val {
+  @apply text-right font-bold;
+  color: var(--primary);
+}
+
+.rules-levels-grid {
+  @apply grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 text-[0.84rem];
+}
+
+.rules-levels-grid .lvl-n {
+  @apply text-right font-bold;
+  color: var(--primary);
+}
+
+.rules-levels-grid .lvl-trump {
+  color: var(--text-muted);
+}
+
+.settings-section {
+  @apply flex flex-col gap-2;
+}
+
+.settings-row {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.theme-btn {
+  background: color-mix(in srgb, var(--bg) 70%, white 30%);
+  border: 2px solid var(--border);
+  color: var(--text);
+  @apply min-h-10 flex-1 px-3 py-2 text-sm font-medium;
+}
+
+.theme-btn.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  @apply font-bold;
+}
+
+.color-swatches {
+  @apply flex flex-wrap gap-2.5;
+}
+
+.color-swatch {
+  border: 3px solid transparent;
+  @apply size-9 shrink-0 rounded-full p-0;
+}
+
+.color-swatch.active {
+  border-color: var(--text);
+}
+
+.settings-toggle-label {
+  @apply flex items-center gap-2 text-sm;
+}
+
+.settings-toggle-label input,
+.cheat-check {
+  accent-color: var(--primary);
+  @apply size-[1.05rem] shrink-0;
+}
+
+.settings-number-input {
+  @apply w-[4.5rem] text-center;
 }
 
 @media (max-width: 420px) {

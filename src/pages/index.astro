@@ -11,7 +11,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           <p class="subtitle">Nytt spill</p>
         </div>
         <div class="header-right">
-          <button class="btn-theme-toggle" id="btn-theme-setup" aria-label="Bytt tema">🌙</button>
+          <button class="btn-settings" id="btn-rules" aria-label="Regler">?</button>
+          <button class="btn-settings" id="btn-settings-setup" aria-label="Innstillinger">⚙️</button>
           <span class="version-badge" id="version-display"></span>
         </div>
       </div>
@@ -44,7 +45,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <div class="app-header">
         <h1>11-ern</h1>
         <div class="header-right">
-          <button class="btn-theme-toggle" id="btn-theme-round" aria-label="Bytt tema">🌙</button>
+          <button class="btn-settings" id="btn-settings-round" aria-label="Innstillinger">⚙️</button>
           <span class="round-badge" id="round-badge">Runde 1</span>
           <span class="version-badge" id="version-display-round"></span>
         </div>
@@ -71,7 +72,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
   <div class="modal-overlay" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-text">
     <div class="modal-box">
-      <p id="modal-text">Start nytt spill? Nåværende spill vil bli slettet.</p>
+      <p id="modal-text" class="modal-title">Start nytt spill? Nåværende spill vil bli slettet.</p>
       <div class="modal-actions">
         <button class="btn-danger" id="modal-yes">Ja, start nytt spill</button>
         <button class="btn-ghost" id="modal-no">Avbryt</button>
@@ -81,7 +82,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 
   <div class="modal-overlay" id="modal-edit" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
     <div class="modal-box">
-      <p id="modal-edit-title"></p>
+      <p id="modal-edit-title" class="modal-title"></p>
       <div id="modal-edit-body"></div>
       <div id="modal-edit-error" class="field-error" style="display:none"></div>
       <div class="modal-actions">
@@ -92,9 +93,113 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     </div>
   </div>
 
-  <div id="update-banner" style="display:none" role="alert" aria-live="assertive">
-    <span>Ny versjon tilgjengelig</span>
-    <button id="btn-update-app">Oppdater</button>
+  <div class="modal-overlay" id="modal-rules" role="dialog" aria-modal="true" aria-labelledby="modal-rules-title">
+    <div class="modal-box">
+      <p id="modal-rules-title" class="modal-title">Slik spiller du 11-ern</p>
+
+      <div class="rules-section">
+        <p class="rules-heading">Oppsett</p>
+        <ul class="rules-list">
+          <li>Hver spiller får 11 kort. Resten legges i en bunke på bordet.</li>
+          <li>Den eldste spilleren starter.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <p class="rules-heading">En runde</p>
+        <ul class="rules-list">
+          <li>Trekk et kort fra bunken eller ta øverste kort fra kastbunken.</li>
+          <li>Avslutt turen ved å legge ut ett kort.</li>
+          <li>Målet er å legge ut kombinasjonen for ditt nåværende nivå og bli kvitt alle kortene på hånd.</li>
+        </ul>
+      </div>
+
+      <div class="rules-section">
+        <p class="rules-heading">Trumf</p>
+        <p class="rules-text">
+          Kortene <strong>2</strong> og <strong>3</strong> er trumfkort og kan brukes som jokere i kombinasjoner.
+        </p>
+      </div>
+
+      <div class="rules-section">
+        <p class="rules-heading">Nivåer</p>
+        <div class="rules-levels-grid" id="rules-levels-grid"></div>
+      </div>
+
+      <div class="rules-section">
+        <p class="rules-heading">Poengberegning</p>
+        <p class="rules-text rules-score-copy">Når noen fullfører en runde, teller de øvrige kortene på hånd:</p>
+        <div class="rules-score-grid">
+          <span>2 og 3 (trumf)</span><span class="score-val">20 poeng</span>
+          <span>Ess</span><span class="score-val">15 poeng</span>
+          <span>10 - Konge</span><span class="score-val">10 poeng</span>
+          <span>4 - 9</span><span class="score-val">5 poeng</span>
+        </div>
+      </div>
+
+      <div class="rules-section">
+        <p class="rules-heading">Seier</p>
+        <p class="rules-text">
+          Den som fullfører alle 11 nivåene først vinner. Avslutter man spillet tidlig, vinner spilleren med høyest nivå. Ved likt nivå vinner den med færrest poeng.
+        </p>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-primary" id="modal-rules-close">Skjønt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-changelog" role="dialog" aria-modal="true" aria-labelledby="modal-changelog-title">
+    <div class="modal-box">
+      <p id="modal-changelog-title" class="modal-title">Hva er nytt</p>
+      <div id="modal-changelog-body"></div>
+      <div class="modal-actions">
+        <button class="btn-primary" id="modal-changelog-close">Forstått</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-settings" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
+    <div class="modal-box">
+      <p id="modal-settings-title" class="modal-title">Innstillinger</p>
+
+      <div class="settings-section">
+        <p class="section-label">Tema</p>
+        <div class="settings-row">
+          <button class="theme-btn" data-theme-val="light">Lyst</button>
+          <button class="theme-btn" data-theme-val="auto">Auto</button>
+          <button class="theme-btn" data-theme-val="dark">Mørkt</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="section-label">Farge</p>
+        <div class="color-swatches">
+          <button class="color-swatch" data-color-val="green" style="background:#2C5F2E" aria-label="Grønn"></button>
+          <button class="color-swatch" data-color-val="blue" style="background:#1A5276" aria-label="Blå"></button>
+          <button class="color-swatch" data-color-val="purple" style="background:#6C3483" aria-label="Lilla"></button>
+          <button class="color-swatch" data-color-val="teal" style="background:#0E6655" aria-label="Turkis"></button>
+          <button class="color-swatch" data-color-val="red" style="background:#922B21" aria-label="Rød"></button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <p class="section-label">Juksregistrering</p>
+        <label class="settings-toggle-label">
+          <input type="checkbox" id="settings-cheat-toggle" />
+          Aktiver juksregistrering
+        </label>
+        <div id="settings-cheat-points-row" class="settings-row" style="display:none">
+          <span>Straffepoeng:</span>
+          <input type="number" id="settings-cheat-points" class="settings-number-input" min="1" max="999" value="10" />
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-ghost" id="modal-settings-close">Lukk</button>
+      </div>
+    </div>
   </div>
 
   <div class="modal-overlay" id="modal-winner" role="dialog" aria-modal="true">

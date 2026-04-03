@@ -1,10 +1,27 @@
-const VERSION = "3.0.0";
+const VERSION = "3.1.0";
 const STORAGE_KEY = "11ern_state";
 const HISTORY_KEY = "11ern_history";
-const THEME_KEY = "11ern_theme";
+const SETTINGS_KEY = "11ern_settings";
+const LAST_VERSION_KEY = "11ern_last_version";
+const LEGACY_THEME_KEY = "11ern_theme";
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
 const BASE_URL = import.meta.env.BASE_URL;
+
+const CHANGELOG = {
+  "2.1.0": ["Historikk: siste 5 spill lagres og vises i statistikk."],
+  "2.2.0": ["Rediger tidligere runder direkte fra oversikten.", "Bekreftelsesdialog ved nytt spill."],
+  "2.3.0": ["Klikkbare spilldetaljer i historikk.", "Dobbelttrykk-zoom er deaktivert på mobil."],
+  "2.4.0": ["Innstillingsknapp med fargevalg, temavalg og juksregistrering."],
+  "2.5.0": ["Fargevalg fungerer nå også i mørk modus.", "Nye oppdateringer får en endringslogg etter reload."],
+  "2.6.0": ["Regelknapp på startsiden åpner komplett spillregler-modal."],
+  "3.0.0": ["Appen ble migrert til Astro og Tailwind CSS.", "GitHub Pages-oppsett og oppdatert PWA-struktur."],
+  "3.1.0": [
+    "Synk med originalen: regler-modal, innstillinger og fargevalg.",
+    "Juksregistrering og klikkbar spillhistorikk er nå med i Astro-versjonen.",
+    "Service worker oppdaterer seg automatisk med changelog etter reload.",
+  ],
+};
 
 const LEVELS = [
   { n: 1, desc: "Serie på 4", trump: 0 },
@@ -22,35 +39,7 @@ const LEVELS = [
 
 let state = defaultState();
 let editingRoundIndex = null;
-
-function initTheme() {
-  try {
-    const saved = localStorage.getItem(THEME_KEY);
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme =
-      saved ? saved : prefersDark ? "dark" : "light";
-  } catch {
-    document.documentElement.dataset.theme = "light";
-  }
-}
-
-function applyTheme(dark) {
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
-  const icon = dark ? "☀️" : "🌙";
-  document.querySelectorAll(".btn-theme-toggle").forEach((button) => {
-    button.textContent = icon;
-  });
-
-  try {
-    localStorage.setItem(THEME_KEY, dark ? "dark" : "light");
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-function toggleTheme() {
-  applyTheme(document.documentElement.dataset.theme !== "dark");
-}
+let settings = loadSettings();
 
 function defaultState() {
   return {
@@ -61,6 +50,63 @@ function defaultState() {
     playerLevels: [],
     roundLevelCleared: [],
   };
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
+    const cheatPoints = Number.parseInt(parsed.cheatPoints, 10);
+
+    return {
+      theme: parsed.theme ?? legacyTheme ?? "auto",
+      color: parsed.color ?? "green",
+      cheatEnabled: parsed.cheatEnabled ?? false,
+      cheatPoints: Number.isNaN(cheatPoints) || cheatPoints < 1 ? 10 : cheatPoints,
+    };
+  } catch {
+    return {
+      theme: "auto",
+      color: "green",
+      cheatEnabled: false,
+      cheatPoints: 10,
+    };
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function prefersDarkMode() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function syncThemeFromSettings() {
+  const isDark = settings.theme === "dark" || (settings.theme === "auto" && prefersDarkMode());
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  document.documentElement.dataset.color = settings.color;
+}
+
+function initTheme() {
+  syncThemeFromSettings();
+}
+
+function applyThemePreference(themePreference) {
+  settings.theme = themePreference;
+  syncThemeFromSettings();
+  saveSettings();
+}
+
+function applyColor(color) {
+  settings.color = color;
+  document.documentElement.dataset.color = color;
+  saveSettings();
 }
 
 function saveState() {
@@ -172,6 +218,14 @@ function recalculateLevels() {
   });
 }
 
+function rerenderCurrentView() {
+  if (state.view === "round") {
+    renderRound();
+  } else {
+    renderSetup();
+  }
+}
+
 function showView(viewId) {
   document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
   document.getElementById(`view-${viewId}`)?.classList.add("active");
@@ -237,7 +291,7 @@ function renderStats() {
   });
 
   const rows = Object.entries(playerStats).sort(
-    (a, b) => b[1].wins - a[1].wins || a[0].localeCompare(b[0]),
+    (a, b) => b[1].wins - a[1].wins || a[0].localeCompare(b[0], "nb"),
   );
 
   const table = document.createElement("table");
@@ -279,13 +333,46 @@ function renderStats() {
     .forEach((game) => {
       const row = document.createElement("div");
       row.className = "past-game-row";
-      row.innerHTML = `
-        <div>
-          <span class="past-game-winner">🏆 ${game.winners.map(escHtml).join(" &amp; ")}</span>
-          · ${game.players.map(escHtml).join(", ")}
-        </div>
-        <div class="past-game-meta">${escHtml(game.date)} · ${game.rounds} runder</div>
+
+      const header = document.createElement("div");
+      header.className = "past-game-row-header";
+
+      const headerLeft = document.createElement("div");
+      headerLeft.innerHTML = `
+        <span class="past-game-winner">🏆 ${game.winners.map(escHtml).join(" &amp; ")}</span>
+        - ${game.players.map(escHtml).join(", ")}
       `;
+
+      const arrow = document.createElement("span");
+      arrow.className = "past-game-arrow";
+      arrow.textContent = "›";
+
+      const meta = document.createElement("div");
+      meta.className = "past-game-meta";
+      meta.textContent = `${game.date} · ${game.rounds} runder`;
+
+      const detail = document.createElement("div");
+      detail.className = "past-game-detail";
+      game.players
+        .map((name, index) => ({ name, score: game.finalScores[index] ?? 0 }))
+        .sort((a, b) => a.score - b.score)
+        .forEach(({ name, score }) => {
+          const line = document.createElement("div");
+          line.className = "past-game-score-line";
+          const isWinner = game.winners.includes(name);
+          line.innerHTML = `
+            <span>${escHtml(name)}</span>
+            <span>${score} poeng${isWinner ? " 🏆" : ""}</span>
+          `;
+          detail.appendChild(line);
+        });
+
+      header.appendChild(headerLeft);
+      header.appendChild(arrow);
+      row.appendChild(header);
+      row.appendChild(meta);
+      row.appendChild(detail);
+      row.addEventListener("click", () => row.classList.toggle("open"));
       recentList.appendChild(row);
     });
   content.appendChild(recentList);
@@ -362,6 +449,25 @@ function renderRound() {
     info.appendChild(total);
     info.appendChild(clearedLabel);
 
+    if (settings.cheatEnabled) {
+      const cheatId = `cheat-${index}`;
+      const cheatLabel = document.createElement("label");
+      cheatLabel.className = "level-cleared-label";
+      cheatLabel.htmlFor = cheatId;
+
+      const cheatCheck = document.createElement("input");
+      cheatCheck.type = "checkbox";
+      cheatCheck.className = "cheat-check";
+      cheatCheck.id = cheatId;
+      cheatCheck.dataset.playerIndex = String(index);
+
+      cheatLabel.appendChild(cheatCheck);
+      cheatLabel.appendChild(
+        document.createTextNode(`Juks (+${settings.cheatPoints} poeng)`),
+      );
+      info.appendChild(cheatLabel);
+    }
+
     const input = document.createElement("input");
     input.type = "number";
     input.inputMode = "numeric";
@@ -413,7 +519,7 @@ function renderLevelOverview() {
 
   const sortedPlayers = state.players
     .map((player, index) => ({ name: player.name, level: state.playerLevels[index] ?? 1 }))
-    .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+    .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name, "nb"));
 
   sortedPlayers.forEach((entry) => {
     const level = LEVELS[entry.level - 1];
@@ -461,9 +567,14 @@ function renderHistory() {
       const playerScores = state.players
         .map((player, playerIndex) => {
           const cleared = state.roundLevelCleared[roundIndex]?.[playerIndex] ?? false;
-          return `<span class="hist-player-score">${escHtml(player.name)}: <strong>${
-            scores[playerIndex] ?? 0
-          }</strong>${cleared ? '<span class="hist-cleared" title="Klarte nivået">✓</span>' : ""}</span>`;
+          return `
+            <span class="hist-player-score">
+              ${escHtml(player.name)}: <strong>${scores[playerIndex] ?? 0}</strong>${
+                cleared
+                  ? '<span class="hist-cleared" title="Klarte nivået">✓</span>'
+                  : ""
+              }
+            </span>`;
         })
         .join("");
 
@@ -556,6 +667,15 @@ function submitRound() {
   document.querySelectorAll(".level-cleared-check").forEach((checkbox) => {
     clearedThisRound[Number.parseInt(checkbox.dataset.playerIndex, 10)] = checkbox.checked;
   });
+
+  if (settings.cheatEnabled) {
+    document.querySelectorAll(".cheat-check").forEach((checkbox) => {
+      if (checkbox.checked) {
+        const playerIndex = Number.parseInt(checkbox.dataset.playerIndex, 10);
+        scores[playerIndex] += settings.cheatPoints;
+      }
+    });
+  }
 
   const levelsBeforeSubmit = [...state.playerLevels];
 
@@ -697,6 +817,55 @@ function showWinnerModal(names) {
   document.getElementById("modal-winner").classList.add("open");
 }
 
+function openRulesModal() {
+  const grid = document.getElementById("rules-levels-grid");
+  if (!grid.hasChildNodes()) {
+    LEVELS.forEach((level) => {
+      const levelNumber = document.createElement("span");
+      levelNumber.className = "lvl-n";
+      levelNumber.textContent = String(level.n);
+
+      const desc = document.createElement("span");
+      desc.textContent = level.desc;
+
+      const trump = document.createElement("span");
+      trump.className = "lvl-trump";
+      trump.textContent = level.trump > 0 ? `${level.trump} trumf` : "";
+
+      grid.appendChild(levelNumber);
+      grid.appendChild(desc);
+      grid.appendChild(trump);
+    });
+  }
+
+  document.getElementById("modal-rules").classList.add("open");
+}
+
+function hideRulesModal() {
+  document.getElementById("modal-rules").classList.remove("open");
+}
+
+function openSettingsModal() {
+  document.querySelectorAll(".theme-btn").forEach((button) => {
+    button.classList.toggle("active", button.dataset.themeVal === settings.theme);
+  });
+
+  document.querySelectorAll(".color-swatch").forEach((button) => {
+    button.classList.toggle("active", button.dataset.colorVal === settings.color);
+  });
+
+  document.getElementById("settings-cheat-toggle").checked = settings.cheatEnabled;
+  document.getElementById("settings-cheat-points").value = String(settings.cheatPoints);
+  document.getElementById("settings-cheat-points-row").style.display = settings.cheatEnabled
+    ? "flex"
+    : "none";
+  document.getElementById("modal-settings").classList.add("open");
+}
+
+function hideSettingsModal() {
+  document.getElementById("modal-settings").classList.remove("open");
+}
+
 function showConfirmModal() {
   document.getElementById("modal-confirm").classList.add("open");
   document.getElementById("modal-yes").focus();
@@ -706,9 +875,148 @@ function hideConfirmModal() {
   document.getElementById("modal-confirm").classList.remove("open");
 }
 
+function compareVersions(a, b) {
+  const left = a.split(".").map(Number);
+  const right = b.split(".").map(Number);
+
+  for (let index = 0; index < 3; index += 1) {
+    if ((left[index] ?? 0) !== (right[index] ?? 0)) {
+      return (left[index] ?? 0) - (right[index] ?? 0);
+    }
+  }
+
+  return 0;
+}
+
+function openChangelogModal(entries) {
+  const body = document.getElementById("modal-changelog-body");
+  body.innerHTML = "";
+
+  entries.forEach(([version, items]) => {
+    const versionLabel = document.createElement("p");
+    versionLabel.className = "changelog-version";
+    versionLabel.textContent = `v${version}`;
+
+    const list = document.createElement("ul");
+    list.className = "changelog-list";
+
+    items.forEach((item) => {
+      const line = document.createElement("li");
+      line.textContent = item;
+      list.appendChild(line);
+    });
+
+    body.appendChild(versionLabel);
+    body.appendChild(list);
+  });
+
+  document.getElementById("modal-changelog").classList.add("open");
+}
+
+function checkChangelog() {
+  const lastSeen = localStorage.getItem(LAST_VERSION_KEY);
+  if (!lastSeen) {
+    localStorage.setItem(LAST_VERSION_KEY, VERSION);
+    return;
+  }
+
+  if (lastSeen === VERSION) {
+    return;
+  }
+
+  const entries = Object.entries(CHANGELOG)
+    .filter(
+      ([version]) =>
+        compareVersions(version, lastSeen) > 0 && compareVersions(version, VERSION) <= 0,
+    )
+    .sort((a, b) => compareVersions(a[0], b[0]));
+
+  localStorage.setItem(LAST_VERSION_KEY, VERSION);
+  if (entries.length > 0) {
+    openChangelogModal(entries);
+  }
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+
+  navigator.serviceWorker.register(`${BASE_URL}sw.js`).catch(() => {
+    // Service worker registration is optional.
+  });
+
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!reloading) {
+      reloading = true;
+      window.location.reload();
+    }
+  });
+}
+
 function bindEvents() {
-  document.querySelectorAll(".btn-theme-toggle").forEach((button) => {
-    button.addEventListener("click", toggleTheme);
+  document.getElementById("btn-rules").addEventListener("click", openRulesModal);
+  document.getElementById("modal-rules-close").addEventListener("click", hideRulesModal);
+  document.getElementById("modal-rules").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) {
+      hideRulesModal();
+    }
+  });
+
+  document.querySelectorAll(".btn-settings:not(#btn-rules)").forEach((button) => {
+    button.addEventListener("click", openSettingsModal);
+  });
+
+  document.querySelectorAll(".theme-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = button.dataset.themeVal;
+      applyThemePreference(value);
+      document.querySelectorAll(".theme-btn").forEach((item) => {
+        item.classList.toggle("active", item.dataset.themeVal === settings.theme);
+      });
+    });
+  });
+
+  document.querySelectorAll(".color-swatch").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyColor(button.dataset.colorVal);
+      document.querySelectorAll(".color-swatch").forEach((item) => {
+        item.classList.toggle("active", item.dataset.colorVal === settings.color);
+      });
+    });
+  });
+
+  document.getElementById("settings-cheat-toggle").addEventListener("change", (event) => {
+    settings.cheatEnabled = event.target.checked;
+    document.getElementById("settings-cheat-points-row").style.display = settings.cheatEnabled
+      ? "flex"
+      : "none";
+    saveSettings();
+    if (state.view === "round") {
+      renderRound();
+    }
+  });
+
+  document.getElementById("settings-cheat-points").addEventListener("change", (event) => {
+    const value = Number.parseInt(event.target.value, 10);
+    if (!Number.isNaN(value) && value > 0) {
+      settings.cheatPoints = value;
+      saveSettings();
+      if (state.view === "round" && settings.cheatEnabled) {
+        renderRound();
+      }
+      return;
+    }
+
+    event.target.value = String(settings.cheatPoints);
+  });
+
+  document.getElementById("modal-settings-close").addEventListener("click", hideSettingsModal);
+  document.getElementById("modal-settings").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) {
+      hideSettingsModal();
+    }
   });
 
   document.getElementById("players-dec").addEventListener("click", () => {
@@ -757,61 +1065,34 @@ function bindEvents() {
     showConfirmModal();
   });
 
+  document.getElementById("modal-changelog-close").addEventListener("click", () => {
+    document.getElementById("modal-changelog").classList.remove("open");
+  });
+  document.getElementById("modal-changelog").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) {
+      document.getElementById("modal-changelog").classList.remove("open");
+    }
+  });
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       hideEditModal();
       hideConfirmModal();
+      hideSettingsModal();
+      hideRulesModal();
       document.getElementById("modal-winner").classList.remove("open");
+      document.getElementById("modal-changelog").classList.remove("open");
     }
   });
-}
 
-function showUpdateBanner(serviceWorker) {
-  const banner = document.getElementById("update-banner");
-  banner.style.display = "flex";
-
-  document.getElementById("btn-update-app").addEventListener(
-    "click",
-    () => {
-      banner.style.display = "none";
-      serviceWorker.postMessage("skipWaiting");
-    },
-    { once: true },
-  );
-}
-
-function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) {
-    return;
-  }
-
-  navigator.serviceWorker
-    .register(`${BASE_URL}sw.js`)
-    .then((registration) => {
-      if (registration.waiting) {
-        showUpdateBanner(registration.waiting);
-      }
-
-      registration.addEventListener("updatefound", () => {
-        const nextWorker = registration.installing;
-        nextWorker?.addEventListener("statechange", () => {
-          if (nextWorker.state === "installed" && navigator.serviceWorker.controller) {
-            showUpdateBanner(nextWorker);
-          }
-        });
-      });
-    })
-    .catch(() => {
-      // Service worker registration is optional.
-    });
-
-  let reloading = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!reloading) {
-      reloading = true;
-      window.location.reload();
+  const themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+  const handleThemeChange = () => {
+    if (settings.theme === "auto") {
+      syncThemeFromSettings();
     }
-  });
+  };
+
+  themeMedia.addEventListener("change", handleThemeChange);
 }
 
 const renders = {
@@ -823,7 +1104,6 @@ function init() {
   initTheme();
   document.getElementById("version-display").textContent = `v${VERSION}`;
   document.getElementById("version-display-round").textContent = `v${VERSION}`;
-  applyTheme(document.documentElement.dataset.theme === "dark");
   bindEvents();
 
   const saved = loadSavedState();
@@ -838,6 +1118,8 @@ function init() {
     showView("setup");
   }
 
+  checkChangelog();
+  rerenderCurrentView();
   registerServiceWorker();
 }
 
