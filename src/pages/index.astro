@@ -11,8 +11,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           <p class="subtitle">Nytt spill</p>
         </div>
         <div class="header-right">
-          <button class="btn-settings" id="btn-rules" aria-label="Regler">?</button>
-          <button class="btn-settings" id="btn-settings-setup" aria-label="Innstillinger">⚙️</button>
+          <button class="btn-settings" id="btn-rules" type="button" aria-label="Regler">?</button>
+          <button class="btn-settings" id="btn-settings-setup" type="button" aria-label="Innstillinger">&#9881;</button>
           <span class="version-badge" id="version-display"></span>
         </div>
       </div>
@@ -21,9 +21,9 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <div>
           <p class="section-label">Antall spillere</p>
           <div class="stepper">
-            <button id="players-dec" aria-label="Færre spillere">−</button>
+            <button id="players-dec" type="button" aria-label="Færre spillere">-</button>
             <span class="stepper-value" id="player-count-display">4</span>
-            <button id="players-inc" aria-label="Flere spillere">+</button>
+            <button id="players-inc" type="button" aria-label="Flere spillere">+</button>
           </div>
         </div>
 
@@ -32,7 +32,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           <div class="player-name-list" id="player-name-list"></div>
         </div>
 
-        <button class="btn-primary" id="btn-start-game">Start spill</button>
+        <button class="btn-primary" id="btn-start-game" type="button">Start spill</button>
 
         <details id="stats-panel">
           <summary>Statistikk</summary>
@@ -45,7 +45,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <div class="app-header">
         <h1>11-ern</h1>
         <div class="header-right">
-          <button class="btn-settings" id="btn-settings-round" aria-label="Innstillinger">⚙️</button>
+          <button class="btn-settings" id="btn-settings-round" type="button" aria-label="Innstillinger">&#9881;</button>
           <span class="round-badge" id="round-badge">Runde 1</span>
           <span class="version-badge" id="version-display-round"></span>
         </div>
@@ -55,7 +55,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         <p class="section-label">Poeng denne runden</p>
         <div class="player-score-list" id="player-score-list"></div>
         <div id="round-submit-error" class="field-error" style="display:none"></div>
-        <button class="btn-primary" id="btn-submit-round">Registrer runde</button>
+        <div class="round-actions">
+          <button class="btn-soft" id="btn-undo-round" type="button" aria-label="Angre siste registrerte runde">
+            Angre siste
+          </button>
+          <button class="btn-primary" id="btn-submit-round" type="button">Registrer runde</button>
+        </div>
+        <p id="round-action-status" class="inline-status" aria-live="polite"></p>
         <div id="level-overview-section"></div>
 
         <details id="history-panel">
@@ -65,7 +71,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       </div>
 
       <div class="view-footer">
-        <button class="btn-ghost" id="btn-new-game-round">Nytt spill</button>
+        <button class="btn-ghost" id="btn-new-game-round" type="button">Nytt spill</button>
       </div>
     </div>
   </div>
@@ -74,8 +80,8 @@ import BaseLayout from "../layouts/BaseLayout.astro";
     <div class="modal-box">
       <p id="modal-text" class="modal-title">Start nytt spill? Nåværende spill vil bli slettet.</p>
       <div class="modal-actions">
-        <button class="btn-danger" id="modal-yes">Ja, start nytt spill</button>
-        <button class="btn-ghost" id="modal-no">Avbryt</button>
+        <button class="btn-danger" id="modal-yes" type="button">Ja, start nytt spill</button>
+        <button class="btn-ghost" id="modal-no" type="button">Avbryt</button>
       </div>
     </div>
   </div>
@@ -86,9 +92,9 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <div id="modal-edit-body"></div>
       <div id="modal-edit-error" class="field-error" style="display:none"></div>
       <div class="modal-actions">
-        <button class="btn-primary" id="modal-edit-save">Lagre endringer</button>
-        <button class="btn-ghost" id="modal-edit-cancel">Avbryt</button>
-        <button class="btn-danger" id="modal-edit-delete">Slett runde</button>
+        <button class="btn-primary" id="modal-edit-save" type="button">Lagre endringer</button>
+        <button class="btn-ghost" id="modal-edit-cancel" type="button">Avbryt</button>
+        <button class="btn-danger" id="modal-edit-delete" type="button">Slett runde</button>
       </div>
     </div>
   </div>
@@ -145,7 +151,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       </div>
 
       <div class="modal-actions">
-        <button class="btn-primary" id="modal-rules-close">Skjønt</button>
+        <button class="btn-primary" id="modal-rules-close" type="button">Skjønt</button>
       </div>
     </div>
   </div>
@@ -155,7 +161,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <p id="modal-changelog-title" class="modal-title">Hva er nytt</p>
       <div id="modal-changelog-body"></div>
       <div class="modal-actions">
-        <button class="btn-primary" id="modal-changelog-close">Forstått</button>
+        <button class="btn-primary" id="modal-changelog-close" type="button">Forstått</button>
       </div>
     </div>
   </div>
@@ -167,20 +173,20 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       <div class="settings-section">
         <p class="section-label">Tema</p>
         <div class="settings-row">
-          <button class="theme-btn" data-theme-val="light">Lyst</button>
-          <button class="theme-btn" data-theme-val="auto">Auto</button>
-          <button class="theme-btn" data-theme-val="dark">Mørkt</button>
+          <button class="theme-btn" data-theme-val="light" type="button">Lyst</button>
+          <button class="theme-btn" data-theme-val="auto" type="button">Auto</button>
+          <button class="theme-btn" data-theme-val="dark" type="button">Mørkt</button>
         </div>
       </div>
 
       <div class="settings-section">
         <p class="section-label">Farge</p>
         <div class="color-swatches">
-          <button class="color-swatch" data-color-val="green" style="background:#2C5F2E" aria-label="Grønn"></button>
-          <button class="color-swatch" data-color-val="blue" style="background:#1A5276" aria-label="Blå"></button>
-          <button class="color-swatch" data-color-val="purple" style="background:#6C3483" aria-label="Lilla"></button>
-          <button class="color-swatch" data-color-val="teal" style="background:#0E6655" aria-label="Turkis"></button>
-          <button class="color-swatch" data-color-val="red" style="background:#922B21" aria-label="Rød"></button>
+          <button class="color-swatch" data-color-val="green" type="button" style="background:#2C5F2E" aria-label="Grønn"></button>
+          <button class="color-swatch" data-color-val="blue" type="button" style="background:#1A5276" aria-label="Blå"></button>
+          <button class="color-swatch" data-color-val="purple" type="button" style="background:#6C3483" aria-label="Lilla"></button>
+          <button class="color-swatch" data-color-val="teal" type="button" style="background:#0E6655" aria-label="Turkis"></button>
+          <button class="color-swatch" data-color-val="red" type="button" style="background:#922B21" aria-label="Rød"></button>
         </div>
       </div>
 
@@ -196,18 +202,30 @@ import BaseLayout from "../layouts/BaseLayout.astro";
         </div>
       </div>
 
+      <div class="settings-section">
+        <p class="section-label">Data</p>
+        <div class="settings-action-grid">
+          <button class="btn-soft" id="btn-export-data" type="button">Eksporter backup</button>
+          <button class="btn-soft" id="btn-import-data" type="button">Importer backup</button>
+        </div>
+        <input id="import-data-input" type="file" accept="application/json" hidden />
+        <p id="settings-data-status" class="settings-helper" aria-live="polite">
+          Eksporterer aktivt spill, historikk og innstillinger som JSON.
+        </p>
+      </div>
+
       <div class="modal-actions">
-        <button class="btn-ghost" id="modal-settings-close">Lukk</button>
+        <button class="btn-ghost" id="modal-settings-close" type="button">Lukk</button>
       </div>
     </div>
   </div>
 
-  <div class="modal-overlay" id="modal-winner" role="dialog" aria-modal="true">
-    <div class="modal-box modal-box-centered">
-      <div id="winner-content"></div>
+  <div class="modal-overlay" id="modal-summary" role="dialog" aria-modal="true" aria-labelledby="modal-summary-title">
+    <div class="modal-box modal-box-wide">
+      <div id="summary-content"></div>
       <div class="modal-actions">
-        <button class="btn-primary" id="winner-continue">Fortsett spillet</button>
-        <button class="btn-ghost" id="winner-new-game">Nytt spill</button>
+        <button class="btn-primary" id="summary-continue" type="button">Fortsett spillet</button>
+        <button class="btn-ghost" id="summary-new-game" type="button">Nytt spill</button>
       </div>
     </div>
   </div>

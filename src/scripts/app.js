@@ -1,11 +1,34 @@
-const VERSION = "3.1.0";
-const STORAGE_KEY = "11ern_state";
-const HISTORY_KEY = "11ern_history";
-const SETTINGS_KEY = "11ern_settings";
-const LAST_VERSION_KEY = "11ern_last_version";
-const LEGACY_THEME_KEY = "11ern_theme";
-const MIN_PLAYERS = 2;
-const MAX_PLAYERS = 8;
+import {
+  LEVELS,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  addRound,
+  buildHistoryEntry,
+  createGameState,
+  defaultState,
+  deleteRound,
+  getGameSummary,
+  normalizeState,
+  undoLastRound,
+  updateRound,
+} from "../lib/game-engine.js";
+import {
+  buildBackupPayload,
+  clearHistory,
+  loadHistory,
+  loadLastVersion,
+  loadSettings,
+  loadState,
+  normalizeSettings,
+  parseBackup,
+  saveHistory,
+  saveLastVersion,
+  saveSettings,
+  saveState,
+  stringifyBackup,
+} from "../lib/storage.js";
+
+const VERSION = "3.2.0";
 const BASE_URL = import.meta.env.BASE_URL;
 
 const CHANGELOG = {
@@ -21,178 +44,23 @@ const CHANGELOG = {
     "Juksregistrering og klikkbar spillhistorikk er nå med i Astro-versjonen.",
     "Service worker oppdaterer seg automatisk med changelog etter reload.",
   ],
+  "3.2.0": [
+    "Angre siste runde og raskere poengregistrering med +/-5-kontroller.",
+    "Eksport og import av backup med validering og versjonert lagring.",
+    "Ny sluttskjerm, bedre modaltilgjengelighet og tester for spillmotoren.",
+  ],
 };
 
-const LEVELS = [
-  { n: 1, desc: "Serie på 4", trump: 0 },
-  { n: 2, desc: "Tress 2 ganger", trump: 1 },
-  { n: 3, desc: "Serie på 4 + tress", trump: 1 },
-  { n: 4, desc: "Serie på 5", trump: 2 },
-  { n: 5, desc: "Tress 3 ganger", trump: 2 },
-  { n: 6, desc: "Serie på 5 + tress", trump: 2 },
-  { n: 7, desc: "Serie på 7", trump: 2 },
-  { n: 8, desc: "Serie på 6 + tress", trump: 3 },
-  { n: 9, desc: "Serie på 4, 2 ganger", trump: 2 },
-  { n: 10, desc: "5 like 2 ganger", trump: 4 },
-  { n: 11, desc: "Serie på 9", trump: 4 },
-];
+const storage = window.localStorage;
 
 let state = defaultState();
+let settings = normalizeSettings({});
+let historyEntries = [];
 let editingRoundIndex = null;
-let settings = loadSettings();
+let activeModal = null;
+let focusReturnElement = null;
 
-function defaultState() {
-  return {
-    view: "setup",
-    playerCount: 4,
-    players: [],
-    rounds: [],
-    playerLevels: [],
-    roundLevelCleared: [],
-  };
-}
-
-function loadSettings() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
-    const cheatPoints = Number.parseInt(parsed.cheatPoints, 10);
-
-    return {
-      theme: parsed.theme ?? legacyTheme ?? "auto",
-      color: parsed.color ?? "green",
-      cheatEnabled: parsed.cheatEnabled ?? false,
-      cheatPoints: Number.isNaN(cheatPoints) || cheatPoints < 1 ? 10 : cheatPoints,
-    };
-  } catch {
-    return {
-      theme: "auto",
-      color: "green",
-      cheatEnabled: false,
-      cheatPoints: 10,
-    };
-  }
-}
-
-function saveSettings() {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-function prefersDarkMode() {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
-
-function syncThemeFromSettings() {
-  const isDark = settings.theme === "dark" || (settings.theme === "auto" && prefersDarkMode());
-  document.documentElement.dataset.theme = isDark ? "dark" : "light";
-  document.documentElement.dataset.color = settings.color;
-}
-
-function initTheme() {
-  syncThemeFromSettings();
-}
-
-function applyThemePreference(themePreference) {
-  settings.theme = themePreference;
-  syncThemeFromSettings();
-  saveSettings();
-}
-
-function applyColor(color) {
-  settings.color = color;
-  document.documentElement.dataset.color = color;
-  saveSettings();
-}
-
-function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-function loadSavedState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const saved = JSON.parse(raw);
-    if (!saved || !Array.isArray(saved.players) || saved.players.length < MIN_PLAYERS) {
-      return null;
-    }
-
-    if (!Array.isArray(saved.rounds)) {
-      saved.rounds = [];
-    }
-
-    if (!Array.isArray(saved.playerLevels) || saved.playerLevels.length !== saved.players.length) {
-      saved.playerLevels = new Array(saved.players.length).fill(1);
-    }
-
-    if (
-      !Array.isArray(saved.roundLevelCleared) ||
-      saved.roundLevelCleared.length !== saved.rounds.length
-    ) {
-      saved.roundLevelCleared = saved.rounds.map(
-        () => new Array(saved.players.length).fill(false),
-      );
-    }
-
-    return saved;
-  } catch {
-    return null;
-  }
-}
-
-function loadHistory() {
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveGameToHistory() {
-  if (state.rounds.length === 0) {
-    return;
-  }
-
-  const totals = getTotals();
-  const minScore = Math.min(...totals);
-  const winners = state.players
-    .filter((_, index) => totals[index] === minScore)
-    .map((player) => player.name);
-
-  const entry = {
-    id: Date.now(),
-    date: new Date().toLocaleDateString("nb-NO"),
-    players: state.players.map((player) => player.name),
-    finalScores: totals,
-    finalLevels: [...state.playerLevels],
-    rounds: state.rounds.length,
-    winners,
-  };
-
-  try {
-    const history = loadHistory();
-    history.push(entry);
-    if (history.length > 50) {
-      history.splice(0, history.length - 50);
-    }
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  } catch {
-    // Ignore storage failures.
-  }
-}
+const refs = {};
 
 function escHtml(value) {
   return String(value)
@@ -201,90 +69,294 @@ function escHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
-function getTotals() {
-  return state.players.map((_, index) =>
-    state.rounds.reduce((sum, round) => sum + (round[index] ?? 0), 0),
-  );
-}
-
-function recalculateLevels() {
-  state.playerLevels = new Array(state.players.length).fill(1);
-  state.roundLevelCleared.forEach((clearedRound) => {
-    clearedRound.forEach((didClear, index) => {
-      if (didClear && state.playerLevels[index] < LEVELS.length) {
-        state.playerLevels[index] += 1;
-      }
-    });
+function cacheRefs() {
+  Object.assign(refs, {
+    app: document.getElementById("app"),
+    versionDisplay: document.getElementById("version-display"),
+    versionDisplayRound: document.getElementById("version-display-round"),
+    playerCountDisplay: document.getElementById("player-count-display"),
+    playerNameList: document.getElementById("player-name-list"),
+    statsContent: document.getElementById("stats-content"),
+    scoreList: document.getElementById("player-score-list"),
+    roundBadge: document.getElementById("round-badge"),
+    roundSubmitError: document.getElementById("round-submit-error"),
+    roundActionStatus: document.getElementById("round-action-status"),
+    historyCount: document.getElementById("history-count"),
+    historyList: document.getElementById("history-list"),
+    levelOverviewSection: document.getElementById("level-overview-section"),
+    modalConfirm: document.getElementById("modal-confirm"),
+    modalEdit: document.getElementById("modal-edit"),
+    modalRules: document.getElementById("modal-rules"),
+    modalSettings: document.getElementById("modal-settings"),
+    modalChangelog: document.getElementById("modal-changelog"),
+    modalSummary: document.getElementById("modal-summary"),
+    modalEditTitle: document.getElementById("modal-edit-title"),
+    modalEditBody: document.getElementById("modal-edit-body"),
+    modalEditError: document.getElementById("modal-edit-error"),
+    settingsCheatToggle: document.getElementById("settings-cheat-toggle"),
+    settingsCheatPoints: document.getElementById("settings-cheat-points"),
+    settingsCheatPointsRow: document.getElementById("settings-cheat-points-row"),
+    settingsDataStatus: document.getElementById("settings-data-status"),
+    importDataInput: document.getElementById("import-data-input"),
+    rulesLevelsGrid: document.getElementById("rules-levels-grid"),
+    changelogBody: document.getElementById("modal-changelog-body"),
+    summaryContent: document.getElementById("summary-content"),
+    undoRoundButton: document.getElementById("btn-undo-round"),
+    summaryContinue: document.getElementById("summary-continue"),
+    summaryNewGame: document.getElementById("summary-new-game"),
   });
 }
 
-function rerenderCurrentView() {
-  if (state.view === "round") {
-    renderRound();
-  } else {
-    renderSetup();
+function loadPersistedData() {
+  state = loadState(storage);
+  settings = loadSettings(storage);
+  historyEntries = loadHistory(storage);
+
+  if (state.players.length >= MIN_PLAYERS) {
+    state.playerCount = state.players.length;
+  }
+
+  saveState(storage, state);
+  saveSettings(storage, settings);
+  saveHistory(storage, historyEntries);
+}
+
+function persistState() {
+  saveState(storage, state);
+}
+
+function persistSettings() {
+  saveSettings(storage, settings);
+}
+
+function persistHistory() {
+  saveHistory(storage, historyEntries);
+}
+
+function setStatus(element, message = "", tone = "info") {
+  if (!element) {
+    return;
+  }
+
+  element.textContent = message;
+  element.dataset.tone = tone;
+  element.hidden = message === "";
+  if ("style" in element) {
+    element.style.display = message === "" ? "none" : "";
   }
 }
 
-function showView(viewId) {
-  document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
-  document.getElementById(`view-${viewId}`)?.classList.add("active");
-  state.view = viewId;
-  saveState();
-  renders[viewId]?.();
+function updateMetaThemeColor() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    return;
+  }
+
+  const primary = getComputedStyle(document.documentElement)
+    .getPropertyValue("--primary")
+    .trim();
+  meta.setAttribute("content", primary || "#2C5F2E");
+}
+
+function syncThemeFromSettings() {
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark = settings.theme === "dark" || (settings.theme === "auto" && prefersDark);
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  document.documentElement.dataset.color = settings.color;
+  updateMetaThemeColor();
+}
+
+function getFocusableElements(container) {
+  return Array.from(
+    container.querySelectorAll(
+      'button, [href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.disabled && !element.hidden && element.offsetParent !== null);
+}
+
+function openModal(modal, initialFocusSelector = null) {
+  if (!modal) {
+    return;
+  }
+
+  if (activeModal && activeModal !== modal) {
+    closeModal(activeModal, false);
+  }
+
+  focusReturnElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  activeModal = modal;
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  const target =
+    (initialFocusSelector ? modal.querySelector(initialFocusSelector) : null) ??
+    getFocusableElements(modal)[0] ??
+    modal;
+
+  requestAnimationFrame(() => {
+    target.focus();
+  });
+}
+
+function closeModal(modal, restoreFocus = true) {
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+
+  if (activeModal === modal) {
+    activeModal = null;
+  }
+
+  if (!document.querySelector(".modal-overlay.open")) {
+    document.body.classList.remove("modal-open");
+  }
+
+  if (restoreFocus && focusReturnElement) {
+    focusReturnElement.focus();
+  }
+
+  if (!document.querySelector(".modal-overlay.open")) {
+    focusReturnElement = null;
+  }
+}
+
+function closeActiveModal() {
+  if (activeModal) {
+    closeModal(activeModal);
+  }
+}
+
+function handleModalKeydown(event) {
+  if (event.key === "Escape") {
+    closeActiveModal();
+    return;
+  }
+
+  if (event.key !== "Tab" || !activeModal) {
+    return;
+  }
+
+  const focusable = getFocusableElements(activeModal);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    activeModal.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function setInputValidity(input, isValid) {
+  input.classList.toggle("error", !isValid);
+  input.setAttribute("aria-invalid", isValid ? "false" : "true");
+}
+
+function archiveCurrentGame() {
+  const entry = buildHistoryEntry(state);
+  if (!entry) {
+    return;
+  }
+
+  historyEntries = [...historyEntries, entry].slice(-50);
+  persistHistory();
+}
+
+function resetGame({ archive = true } = {}) {
+  if (archive) {
+    archiveCurrentGame();
+  }
+
+  state = defaultState();
+  editingRoundIndex = null;
+  persistState();
+  showView("setup");
+}
+
+function formatRanking(entry) {
+  if (Array.isArray(entry.ranking) && entry.ranking.length === entry.players.length) {
+    return entry.ranking;
+  }
+
+  return entry.players
+    .map((name, index) => ({
+      name,
+      total: entry.finalScores[index] ?? 0,
+      level: entry.finalLevels[index] ?? 1,
+    }))
+    .sort(
+      (a, b) =>
+        b.level - a.level ||
+        a.total - b.total ||
+        a.name.localeCompare(b.name, "nb"),
+    );
 }
 
 function renderSetup() {
-  document.getElementById("player-count-display").textContent = String(state.playerCount);
-  const list = document.getElementById("player-name-list");
-  const existing = list.querySelectorAll("input");
-  const oldValues = Array.from(existing).map((element) => element.value);
+  refs.playerCountDisplay.textContent = String(state.playerCount);
+  const previousValues = Array.from(refs.playerNameList.querySelectorAll("input")).map(
+    (element) => element.value,
+  );
+  const seededValues =
+    previousValues.length > 0
+      ? previousValues
+      : state.players.map((player) => player.name);
 
-  list.innerHTML = "";
+  refs.playerNameList.innerHTML = "";
 
   for (let index = 0; index < state.playerCount; index += 1) {
     const row = document.createElement("div");
     row.className = "player-name-row";
 
     const label = document.createElement("label");
-    label.textContent = `Spiller ${index + 1}`;
     label.htmlFor = `pname-${index}`;
+    label.textContent = `Spiller ${index + 1}`;
 
     const input = document.createElement("input");
-    input.type = "text";
     input.id = `pname-${index}`;
+    input.type = "text";
     input.placeholder = `Spiller ${index + 1}`;
-    input.value = oldValues[index] ?? "";
     input.autocomplete = "off";
+    input.value = seededValues[index] ?? "";
 
     row.appendChild(label);
     row.appendChild(input);
-    list.appendChild(row);
+    refs.playerNameList.appendChild(row);
   }
 
   renderStats();
 }
 
 function renderStats() {
-  const history = loadHistory();
-  const content = document.getElementById("stats-content");
-  content.innerHTML = "";
+  refs.statsContent.innerHTML = "";
 
-  if (history.length === 0) {
-    content.innerHTML = '<p class="empty-state-copy">Ingen spill registrert ennå.</p>';
+  if (historyEntries.length === 0) {
+    refs.statsContent.innerHTML = '<p class="empty-state-copy">Ingen spill registrert ennå.</p>';
     return;
   }
 
   const playerStats = {};
-  history.forEach((game) => {
-    game.players.forEach((name, index) => {
+  historyEntries.forEach((entry) => {
+    entry.players.forEach((name, index) => {
       if (!playerStats[name]) {
         playerStats[name] = { games: 0, wins: 0, totalScore: 0 };
       }
 
       playerStats[name].games += 1;
-      playerStats[name].totalScore += game.finalScores[index] ?? 0;
-      if (game.winners.includes(name)) {
+      playerStats[name].totalScore += entry.finalScores[index] ?? 0;
+      if (entry.winners.includes(name)) {
         playerStats[name].wins += 1;
       }
     });
@@ -319,18 +391,19 @@ function renderStats() {
         .join("")}
     </tbody>
   `;
-  content.appendChild(table);
+  refs.statsContent.appendChild(table);
 
   const recentLabel = document.createElement("div");
   recentLabel.className = "section-label";
   recentLabel.textContent = "Siste spill";
-  content.appendChild(recentLabel);
+  refs.statsContent.appendChild(recentLabel);
 
   const recentList = document.createElement("div");
-  [...history]
+  [...historyEntries]
     .reverse()
     .slice(0, 5)
-    .forEach((game) => {
+    .forEach((entry) => {
+      const ranking = formatRanking(entry);
       const row = document.createElement("div");
       row.className = "past-game-row";
 
@@ -339,8 +412,8 @@ function renderStats() {
 
       const headerLeft = document.createElement("div");
       headerLeft.innerHTML = `
-        <span class="past-game-winner">🏆 ${game.winners.map(escHtml).join(" &amp; ")}</span>
-        - ${game.players.map(escHtml).join(", ")}
+        <span class="past-game-winner">🏆 ${entry.winners.map(escHtml).join(" &amp; ")}</span>
+        - ${entry.players.map(escHtml).join(", ")}
       `;
 
       const arrow = document.createElement("span");
@@ -349,23 +422,19 @@ function renderStats() {
 
       const meta = document.createElement("div");
       meta.className = "past-game-meta";
-      meta.textContent = `${game.date} · ${game.rounds} runder`;
+      meta.textContent = `${entry.date} · ${entry.rounds} runder`;
 
       const detail = document.createElement("div");
       detail.className = "past-game-detail";
-      game.players
-        .map((name, index) => ({ name, score: game.finalScores[index] ?? 0 }))
-        .sort((a, b) => a.score - b.score)
-        .forEach(({ name, score }) => {
-          const line = document.createElement("div");
-          line.className = "past-game-score-line";
-          const isWinner = game.winners.includes(name);
-          line.innerHTML = `
-            <span>${escHtml(name)}</span>
-            <span>${score} poeng${isWinner ? " 🏆" : ""}</span>
-          `;
-          detail.appendChild(line);
-        });
+      ranking.forEach((player) => {
+        const line = document.createElement("div");
+        line.className = "past-game-score-line";
+        line.innerHTML = `
+          <span>${escHtml(player.name)} · nivå ${player.level}</span>
+          <span>${player.total} poeng${entry.winners.includes(player.name) ? " 🏆" : ""}</span>
+        `;
+        detail.appendChild(line);
+      });
 
       header.appendChild(headerLeft);
       header.appendChild(arrow);
@@ -375,35 +444,86 @@ function renderStats() {
       row.addEventListener("click", () => row.classList.toggle("open"));
       recentList.appendChild(row);
     });
-  content.appendChild(recentList);
+  refs.statsContent.appendChild(recentList);
 
   const clearButton = document.createElement("button");
   clearButton.className = "btn-clear-history";
+  clearButton.type = "button";
   clearButton.textContent = "Slett historikk";
   clearButton.addEventListener("click", () => {
     if (confirm("Slette all spillhistorikk?")) {
-      localStorage.removeItem(HISTORY_KEY);
+      historyEntries = [];
+      clearHistory(storage);
       renderStats();
+      setStatus(refs.settingsDataStatus, "Historikken er slettet.", "success");
     }
   });
-  content.appendChild(clearButton);
+  refs.statsContent.appendChild(clearButton);
+}
+
+function adjustScoreInput(input, delta) {
+  const current = Number.parseInt(input.value || "0", 10);
+  const nextValue = Math.max(0, (Number.isNaN(current) ? 0 : current) + delta);
+  input.value = String(nextValue);
+  setInputValidity(input, true);
+}
+
+function createScoreControls(index) {
+  const controls = document.createElement("div");
+  controls.className = "score-entry-controls";
+
+  const decreaseButton = document.createElement("button");
+  decreaseButton.className = "score-step-btn";
+  decreaseButton.type = "button";
+  decreaseButton.textContent = "-5";
+  decreaseButton.setAttribute("aria-label", "Trekk fra fem poeng");
+
+  const inputShell = document.createElement("div");
+  inputShell.className = "score-input-shell";
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.inputMode = "numeric";
+  input.step = "5";
+  input.min = "0";
+  input.placeholder = "0";
+  input.className = "score-input";
+  input.dataset.playerIndex = String(index);
+  input.setAttribute("aria-label", "Poeng denne runden");
+
+  const increaseButton = document.createElement("button");
+  increaseButton.className = "score-step-btn";
+  increaseButton.type = "button";
+  increaseButton.textContent = "+5";
+  increaseButton.setAttribute("aria-label", "Legg til fem poeng");
+
+  decreaseButton.addEventListener("click", () => adjustScoreInput(input, -5));
+  increaseButton.addEventListener("click", () => adjustScoreInput(input, 5));
+
+  inputShell.appendChild(input);
+  controls.appendChild(decreaseButton);
+  controls.appendChild(inputShell);
+  controls.appendChild(increaseButton);
+  return { controls, input };
 }
 
 function renderRound() {
   const roundNumber = state.rounds.length + 1;
-  document.getElementById("round-badge").textContent = `Runde ${roundNumber}`;
-  document.getElementById("round-submit-error").style.display = "none";
+  refs.roundBadge.textContent = `Runde ${roundNumber}`;
+  refs.roundSubmitError.style.display = "none";
+  refs.undoRoundButton.disabled = state.rounds.length === 0;
 
-  const totals = getTotals();
+  const totals = getGameSummary(state).standings.reduce((map, entry) => {
+    map[entry.index] = entry.total;
+    return map;
+  }, {});
   const sortedIndices = state.players
     .map((_, index) => index)
     .sort((a, b) => totals[a] - totals[b]);
 
-  const list = document.getElementById("player-score-list");
-  list.innerHTML = "";
+  refs.scoreList.innerHTML = "";
 
   sortedIndices.forEach((index, position) => {
-    const player = state.players[index];
     const row = document.createElement("div");
     row.className = "player-score-row";
 
@@ -425,7 +545,7 @@ function renderRound() {
 
     const name = document.createElement("div");
     name.className = "player-name";
-    name.textContent = player.name;
+    name.textContent = state.players[index].name;
 
     const total = document.createElement("div");
     total.className = "player-total";
@@ -468,31 +588,19 @@ function renderRound() {
       info.appendChild(cheatLabel);
     }
 
-    const input = document.createElement("input");
-    input.type = "number";
-    input.inputMode = "numeric";
-    input.className = "score-input";
-    input.dataset.playerIndex = String(index);
-    input.value = "";
-    input.placeholder = "0";
-    input.min = "0";
-
+    const { controls, input } = createScoreControls(index);
     row.appendChild(rank);
     row.appendChild(info);
-    row.appendChild(input);
-    list.appendChild(row);
-  });
+    row.appendChild(controls);
+    refs.scoreList.appendChild(row);
 
-  renderLevelOverview();
-  renderHistory();
-
-  const inputs = list.querySelectorAll(".score-input");
-  inputs.forEach((input, index) => {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        if (index < inputs.length - 1) {
-          inputs[index + 1].focus();
+        const inputs = Array.from(refs.scoreList.querySelectorAll(".score-input"));
+        const currentIndex = inputs.indexOf(input);
+        if (currentIndex >= 0 && currentIndex < inputs.length - 1) {
+          inputs[currentIndex + 1].focus();
         } else {
           submitRound();
         }
@@ -500,14 +608,18 @@ function renderRound() {
     });
   });
 
-  if (inputs.length > 0) {
-    inputs[0].focus();
+  renderLevelOverview();
+  renderHistory();
+
+  const firstInput = refs.scoreList.querySelector(".score-input");
+  if (firstInput) {
+    firstInput.focus();
   }
 }
 
 function renderLevelOverview() {
-  const section = document.getElementById("level-overview-section");
-  section.innerHTML = "";
+  const summary = getGameSummary(state);
+  refs.levelOverviewSection.innerHTML = "";
 
   const container = document.createElement("div");
   container.className = "level-overview";
@@ -517,102 +629,97 @@ function renderLevelOverview() {
   header.textContent = "Nivåoversikt";
   container.appendChild(header);
 
-  const sortedPlayers = state.players
-    .map((player, index) => ({ name: player.name, level: state.playerLevels[index] ?? 1 }))
-    .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name, "nb"));
-
-  sortedPlayers.forEach((entry) => {
-    const level = LEVELS[entry.level - 1];
-    const done = entry.level >= LEVELS.length;
+  summary.standings.forEach((entry) => {
+    const level = LEVELS[Math.max(0, Math.min(LEVELS.length - 1, entry.level - 1))];
+    const isDone = entry.level >= LEVELS.length;
 
     const row = document.createElement("div");
     row.className = "level-overview-row";
-
-    const leftColumn = document.createElement("div");
-
-    const name = document.createElement("div");
-    name.className = "level-overview-name";
-    name.textContent = entry.name;
-
-    const description = document.createElement("div");
-    description.className = "level-overview-desc";
-    description.textContent = `${level.desc} · maks ${level.trump} trumf`;
-
-    const badge = document.createElement("span");
-    badge.className = `level-overview-badge${done ? " level-done" : ""}`;
-    badge.textContent = done ? `Nivå ${level.n} ✓` : `Nivå ${level.n}`;
-
-    leftColumn.appendChild(name);
-    leftColumn.appendChild(description);
-    row.appendChild(leftColumn);
-    row.appendChild(badge);
+    row.innerHTML = `
+      <div>
+        <div class="level-overview-name">${escHtml(entry.name)}</div>
+        <div class="level-overview-desc">${escHtml(level.desc)} · maks ${level.trump} trumf</div>
+      </div>
+      <span class="level-overview-badge${isDone ? " level-done" : ""}">
+        Nivå ${level.n}${isDone ? " ✓" : ""}
+      </span>
+    `;
     container.appendChild(row);
   });
 
-  section.appendChild(container);
+  refs.levelOverviewSection.appendChild(container);
 }
 
 function renderHistory() {
-  const count = document.getElementById("history-count");
-  const list = document.getElementById("history-list");
-  count.textContent = String(state.rounds.length);
+  refs.historyCount.textContent = String(state.rounds.length);
 
   if (state.rounds.length === 0) {
-    list.innerHTML = "";
+    refs.historyList.innerHTML = "";
     return;
   }
 
   const rows = state.rounds
-    .map((scores, roundIndex) => {
-      const playerScores = state.players
-        .map((player, playerIndex) => {
-          const cleared = state.roundLevelCleared[roundIndex]?.[playerIndex] ?? false;
-          return `
-            <span class="hist-player-score">
-              ${escHtml(player.name)}: <strong>${scores[playerIndex] ?? 0}</strong>${
-                cleared
-                  ? '<span class="hist-cleared" title="Klarte nivået">✓</span>'
-                  : ""
-              }
-            </span>`;
-        })
-        .join("");
-
-      return {
-        roundIndex,
-        html: `
-          <div class="history-round">
-            <div class="history-round-header">
-              <span class="history-round-num">Runde ${roundIndex + 1}</span>
-              <button class="btn-edit-round" data-round="${roundIndex}">Rediger</button>
-            </div>
-            <div class="history-round-scores">${playerScores}</div>
-          </div>`,
-      };
-    })
+    .map((scores, roundIndex) => ({
+      roundIndex,
+      html: `
+        <div class="history-round">
+          <div class="history-round-header">
+            <span class="history-round-num">Runde ${roundIndex + 1}</span>
+            <button class="btn-edit-round" type="button" data-round="${roundIndex}">Rediger</button>
+          </div>
+          <div class="history-round-scores">
+            ${state.players
+              .map((player, playerIndex) => {
+                const cleared = state.roundLevelCleared[roundIndex]?.[playerIndex] ?? false;
+                return `
+                  <span class="hist-player-score">
+                    ${escHtml(player.name)}: <strong>${scores[playerIndex] ?? 0}</strong>${
+                      cleared
+                        ? '<span class="hist-cleared" title="Klarte nivået">✓</span>'
+                        : ""
+                    }
+                  </span>`;
+              })
+              .join("")}
+          </div>
+        </div>`,
+    }))
     .reverse();
 
-  list.innerHTML = rows.map((row) => row.html).join("");
-  list.querySelectorAll(".btn-edit-round").forEach((button) => {
+  refs.historyList.innerHTML = rows.map((row) => row.html).join("");
+  refs.historyList.querySelectorAll(".btn-edit-round").forEach((button) => {
     button.addEventListener("click", () => {
       openEditModal(Number.parseInt(button.dataset.round, 10));
     });
   });
 }
 
+function showView(viewId) {
+  document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
+  document.getElementById(`view-${viewId}`)?.classList.add("active");
+  state.view = viewId;
+  persistState();
+
+  if (viewId === "round") {
+    renderRound();
+  } else {
+    renderSetup();
+  }
+}
+
 function startGame() {
-  const inputs = document.querySelectorAll("#player-name-list input");
-  let valid = true;
+  const inputs = Array.from(refs.playerNameList.querySelectorAll("input"));
   const names = [];
+  let valid = true;
 
   inputs.forEach((input) => {
     const value = input.value.trim();
-    if (!value) {
-      input.classList.add("error");
-      valid = false;
-    } else {
-      input.classList.remove("error");
+    const isValid = value !== "";
+    setInputValidity(input, isValid);
+    if (isValid) {
       names.push(value);
+    } else {
+      valid = false;
     }
   });
 
@@ -620,56 +727,41 @@ function startGame() {
     return;
   }
 
-  state.players = names.map((name) => ({ name }));
-  state.rounds = [];
-  state.roundLevelCleared = [];
-  state.playerLevels = new Array(names.length).fill(1);
-  saveState();
+  state = createGameState(names);
+  persistState();
   showView("round");
 }
 
-function submitRound() {
-  const inputs = document.querySelectorAll("#player-score-list .score-input");
-  const error = document.getElementById("round-submit-error");
+function collectRoundPayload() {
   const scores = new Array(state.players.length);
   let valid = true;
 
-  inputs.forEach((input) => {
+  refs.scoreList.querySelectorAll(".score-input").forEach((input) => {
     const playerIndex = Number.parseInt(input.dataset.playerIndex, 10);
     const raw = input.value.trim();
-
-    if (raw === "") {
-      input.classList.add("error");
-      valid = false;
-      return;
-    }
-
     const score = Number.parseInt(raw, 10);
-    if (Number.isNaN(score) || score < 0) {
-      input.classList.add("error");
+    const isValid = raw !== "" && !Number.isNaN(score) && score >= 0;
+
+    setInputValidity(input, isValid);
+    if (!isValid) {
       valid = false;
       return;
     }
 
-    input.classList.remove("error");
     scores[playerIndex] = score;
   });
 
   if (!valid) {
-    error.textContent = "Fyll inn poeng (0 eller mer) for alle spillere.";
-    error.style.display = "";
-    return;
+    throw new Error("Fyll inn poeng (0 eller mer) for alle spillere.");
   }
 
-  error.style.display = "none";
-
-  const clearedThisRound = new Array(state.players.length).fill(false);
-  document.querySelectorAll(".level-cleared-check").forEach((checkbox) => {
-    clearedThisRound[Number.parseInt(checkbox.dataset.playerIndex, 10)] = checkbox.checked;
+  const cleared = new Array(state.players.length).fill(false);
+  refs.scoreList.querySelectorAll(".level-cleared-check").forEach((checkbox) => {
+    cleared[Number.parseInt(checkbox.dataset.playerIndex, 10)] = checkbox.checked;
   });
 
   if (settings.cheatEnabled) {
-    document.querySelectorAll(".cheat-check").forEach((checkbox) => {
+    refs.scoreList.querySelectorAll(".cheat-check").forEach((checkbox) => {
       if (checkbox.checked) {
         const playerIndex = Number.parseInt(checkbox.dataset.playerIndex, 10);
         scores[playerIndex] += settings.cheatPoints;
@@ -677,42 +769,51 @@ function submitRound() {
     });
   }
 
-  const levelsBeforeSubmit = [...state.playerLevels];
+  return { scores, cleared };
+}
 
-  state.rounds.push(scores);
-  state.roundLevelCleared.push(clearedThisRound);
-  recalculateLevels();
-  saveState();
+function submitRound() {
+  try {
+    const payload = collectRoundPayload();
+    const result = addRound(state, payload);
+    state = result.state;
+    persistState();
+    setStatus(refs.roundSubmitError, "");
+    setStatus(refs.roundActionStatus, "", "info");
+    showView("round");
 
-  const newWinners = state.players
-    .filter((_, index) => clearedThisRound[index] && levelsBeforeSubmit[index] === LEVELS.length)
-    .map((player) => player.name);
-
-  showView("round");
-  if (newWinners.length > 0) {
-    showWinnerModal(newWinners);
+    if (result.newWinners.length > 0) {
+      openSummaryModal("winner", result.newWinners);
+    }
+  } catch (error) {
+    setStatus(refs.roundSubmitError, error.message, "error");
   }
 }
 
-function resetGame() {
-  saveGameToHistory();
-  state = defaultState();
-  saveState();
-  showView("setup");
+function undoLastRoundAction() {
+  const result = undoLastRound(state);
+  if (!result.removedRound) {
+    setStatus(refs.roundActionStatus, "Ingen runder å angre ennå.", "info");
+    return;
+  }
+
+  state = result.state;
+  persistState();
+  showView("round");
+  setStatus(
+    refs.roundActionStatus,
+    `Siste runde ble angret. ${state.rounds.length} runder gjenstår.`,
+    "success",
+  );
 }
 
 function openEditModal(roundIndex) {
   editingRoundIndex = roundIndex;
-  document.getElementById("modal-edit-title").textContent = `Rediger runde ${roundIndex + 1}`;
-  document.getElementById("modal-edit-error").style.display = "none";
-
-  const body = document.getElementById("modal-edit-body");
-  body.innerHTML = "";
+  refs.modalEditTitle.textContent = `Rediger runde ${roundIndex + 1}`;
+  setStatus(refs.modalEditError, "");
+  refs.modalEditBody.innerHTML = "";
 
   state.players.forEach((player, playerIndex) => {
-    const score = state.rounds[roundIndex][playerIndex] ?? 0;
-    const cleared = state.roundLevelCleared[roundIndex]?.[playerIndex] ?? false;
-
     const row = document.createElement("div");
     row.className = "edit-player-row";
 
@@ -725,7 +826,7 @@ function openEditModal(roundIndex) {
     scoreInput.inputMode = "numeric";
     scoreInput.className = "edit-score-input";
     scoreInput.id = `edit-score-${playerIndex}`;
-    scoreInput.value = String(score);
+    scoreInput.value = String(state.rounds[roundIndex][playerIndex] ?? 0);
     scoreInput.min = "0";
 
     const clearedLabel = document.createElement("label");
@@ -734,24 +835,17 @@ function openEditModal(roundIndex) {
     const clearedCheck = document.createElement("input");
     clearedCheck.type = "checkbox";
     clearedCheck.id = `edit-cleared-${playerIndex}`;
-    clearedCheck.checked = cleared;
+    clearedCheck.checked = state.roundLevelCleared[roundIndex]?.[playerIndex] ?? false;
 
     clearedLabel.appendChild(clearedCheck);
     clearedLabel.appendChild(document.createTextNode("Klarte"));
-
     row.appendChild(name);
     row.appendChild(scoreInput);
     row.appendChild(clearedLabel);
-    body.appendChild(row);
+    refs.modalEditBody.appendChild(row);
   });
 
-  document.getElementById("modal-edit").classList.add("open");
-  body.querySelector(".edit-score-input")?.focus();
-}
-
-function hideEditModal() {
-  editingRoundIndex = null;
-  document.getElementById("modal-edit").classList.remove("open");
+  openModal(refs.modalEdit, ".edit-score-input");
 }
 
 function saveEditedRound() {
@@ -759,129 +853,111 @@ function saveEditedRound() {
     return;
   }
 
-  const error = document.getElementById("modal-edit-error");
-  let valid = true;
+  try {
+    const scores = state.players.map((_, playerIndex) => {
+      const input = document.getElementById(`edit-score-${playerIndex}`);
+      const value = Number.parseInt(input.value, 10);
+      const isValid = !Number.isNaN(value) && value >= 0;
+      setInputValidity(input, isValid);
 
-  const newScores = state.players.map((_, playerIndex) => {
-    const input = document.getElementById(`edit-score-${playerIndex}`);
-    const value = Number.parseInt(input.value, 10);
+      if (!isValid) {
+        throw new Error("Fyll inn gyldige poeng (0 eller mer) for alle spillere.");
+      }
 
-    if (Number.isNaN(value) || value < 0) {
-      input.classList.add("error");
-      valid = false;
-      return 0;
-    }
+      return value;
+    });
 
-    input.classList.remove("error");
-    return value;
-  });
+    const cleared = state.players.map((_, playerIndex) =>
+      document.getElementById(`edit-cleared-${playerIndex}`).checked,
+    );
 
-  if (!valid) {
-    error.textContent = "Fyll inn gyldige poeng (0 eller mer) for alle spillere.";
-    error.style.display = "";
-    return;
+    state = updateRound(state, editingRoundIndex, { scores, cleared });
+    editingRoundIndex = null;
+    persistState();
+    closeModal(refs.modalEdit);
+    showView("round");
+  } catch (error) {
+    setStatus(refs.modalEditError, error.message, "error");
   }
-
-  error.style.display = "none";
-
-  state.rounds[editingRoundIndex] = newScores;
-  state.roundLevelCleared[editingRoundIndex] = state.players.map((_, playerIndex) =>
-    document.getElementById(`edit-cleared-${playerIndex}`).checked,
-  );
-
-  recalculateLevels();
-  saveState();
-  hideEditModal();
-  renderRound();
 }
 
-function deleteRound() {
+function deleteRoundAction() {
   if (editingRoundIndex === null) {
     return;
   }
 
-  state.rounds.splice(editingRoundIndex, 1);
-  state.roundLevelCleared.splice(editingRoundIndex, 1);
-  recalculateLevels();
-  saveState();
-  hideEditModal();
-  renderRound();
+  state = deleteRound(state, editingRoundIndex);
+  editingRoundIndex = null;
+  persistState();
+  closeModal(refs.modalEdit);
+  showView("round");
+  setStatus(refs.roundActionStatus, "Runden ble slettet.", "success");
 }
 
-function showWinnerModal(names) {
-  document.getElementById("winner-content").innerHTML = `
-    <div class="winner-emoji">🎉</div>
-    <div class="winner-name">${names.map(escHtml).join(" &amp; ")}</div>
-    <div class="winner-sub">Fullførte alle 11 nivåer!</div>
-  `;
-  document.getElementById("modal-winner").classList.add("open");
+function populateRulesGrid() {
+  if (refs.rulesLevelsGrid.childElementCount > 0) {
+    return;
+  }
+
+  LEVELS.forEach((level) => {
+    const number = document.createElement("span");
+    number.className = "lvl-n";
+    number.textContent = String(level.n);
+
+    const desc = document.createElement("span");
+    desc.textContent = level.desc;
+
+    const trump = document.createElement("span");
+    trump.className = "lvl-trump";
+    trump.textContent = level.trump > 0 ? `${level.trump} trumf` : "";
+
+    refs.rulesLevelsGrid.appendChild(number);
+    refs.rulesLevelsGrid.appendChild(desc);
+    refs.rulesLevelsGrid.appendChild(trump);
+  });
 }
 
 function openRulesModal() {
-  const grid = document.getElementById("rules-levels-grid");
-  if (!grid.hasChildNodes()) {
-    LEVELS.forEach((level) => {
-      const levelNumber = document.createElement("span");
-      levelNumber.className = "lvl-n";
-      levelNumber.textContent = String(level.n);
-
-      const desc = document.createElement("span");
-      desc.textContent = level.desc;
-
-      const trump = document.createElement("span");
-      trump.className = "lvl-trump";
-      trump.textContent = level.trump > 0 ? `${level.trump} trumf` : "";
-
-      grid.appendChild(levelNumber);
-      grid.appendChild(desc);
-      grid.appendChild(trump);
-    });
-  }
-
-  document.getElementById("modal-rules").classList.add("open");
-}
-
-function hideRulesModal() {
-  document.getElementById("modal-rules").classList.remove("open");
+  populateRulesGrid();
+  openModal(refs.modalRules, "#modal-rules-close");
 }
 
 function openSettingsModal() {
-  document.querySelectorAll(".theme-btn").forEach((button) => {
+  refs.modalSettings.querySelectorAll(".theme-btn").forEach((button) => {
     button.classList.toggle("active", button.dataset.themeVal === settings.theme);
   });
 
-  document.querySelectorAll(".color-swatch").forEach((button) => {
+  refs.modalSettings.querySelectorAll(".color-swatch").forEach((button) => {
     button.classList.toggle("active", button.dataset.colorVal === settings.color);
   });
 
-  document.getElementById("settings-cheat-toggle").checked = settings.cheatEnabled;
-  document.getElementById("settings-cheat-points").value = String(settings.cheatPoints);
-  document.getElementById("settings-cheat-points-row").style.display = settings.cheatEnabled
-    ? "flex"
-    : "none";
-  document.getElementById("modal-settings").classList.add("open");
+  refs.settingsCheatToggle.checked = settings.cheatEnabled;
+  refs.settingsCheatPoints.value = String(settings.cheatPoints);
+  refs.settingsCheatPointsRow.style.display = settings.cheatEnabled ? "flex" : "none";
+  if (activeModal !== refs.modalSettings) {
+    openModal(refs.modalSettings, "#modal-settings-close");
+  }
 }
 
-function hideSettingsModal() {
-  document.getElementById("modal-settings").classList.remove("open");
+function applyThemePreference(theme) {
+  settings.theme = theme;
+  persistSettings();
+  syncThemeFromSettings();
 }
 
-function showConfirmModal() {
-  document.getElementById("modal-confirm").classList.add("open");
-  document.getElementById("modal-yes").focus();
+function applyColor(color) {
+  settings.color = color;
+  persistSettings();
+  syncThemeFromSettings();
 }
 
-function hideConfirmModal() {
-  document.getElementById("modal-confirm").classList.remove("open");
-}
-
-function compareVersions(a, b) {
-  const left = a.split(".").map(Number);
-  const right = b.split(".").map(Number);
+function compareVersions(left, right) {
+  const a = left.split(".").map(Number);
+  const b = right.split(".").map(Number);
 
   for (let index = 0; index < 3; index += 1) {
-    if ((left[index] ?? 0) !== (right[index] ?? 0)) {
-      return (left[index] ?? 0) - (right[index] ?? 0);
+    if ((a[index] ?? 0) !== (b[index] ?? 0)) {
+      return (a[index] ?? 0) - (b[index] ?? 0);
     }
   }
 
@@ -889,13 +965,12 @@ function compareVersions(a, b) {
 }
 
 function openChangelogModal(entries) {
-  const body = document.getElementById("modal-changelog-body");
-  body.innerHTML = "";
+  refs.changelogBody.innerHTML = "";
 
   entries.forEach(([version, items]) => {
-    const versionLabel = document.createElement("p");
-    versionLabel.className = "changelog-version";
-    versionLabel.textContent = `v${version}`;
+    const heading = document.createElement("p");
+    heading.className = "changelog-version";
+    heading.textContent = `v${version}`;
 
     const list = document.createElement("ul");
     list.className = "changelog-list";
@@ -906,17 +981,17 @@ function openChangelogModal(entries) {
       list.appendChild(line);
     });
 
-    body.appendChild(versionLabel);
-    body.appendChild(list);
+    refs.changelogBody.appendChild(heading);
+    refs.changelogBody.appendChild(list);
   });
 
-  document.getElementById("modal-changelog").classList.add("open");
+  openModal(refs.modalChangelog, "#modal-changelog-close");
 }
 
 function checkChangelog() {
-  const lastSeen = localStorage.getItem(LAST_VERSION_KEY);
+  const lastSeen = loadLastVersion(storage);
   if (!lastSeen) {
-    localStorage.setItem(LAST_VERSION_KEY, VERSION);
+    saveLastVersion(storage, VERSION);
     return;
   }
 
@@ -931,9 +1006,121 @@ function checkChangelog() {
     )
     .sort((a, b) => compareVersions(a[0], b[0]));
 
-  localStorage.setItem(LAST_VERSION_KEY, VERSION);
+  saveLastVersion(storage, VERSION);
   if (entries.length > 0) {
     openChangelogModal(entries);
+  }
+}
+
+function buildSummaryMarkup(reason, highlightedWinners) {
+  const summary = getGameSummary(state);
+  const winners = highlightedWinners.length > 0 ? highlightedWinners : summary.winners;
+  const winnerLine =
+    winners.length > 0
+      ? winners.join(" og ")
+      : summary.standings[0]?.name ?? "Ingen leder ennå";
+
+  const title = reason === "winner" ? "Spillet har en vinner" : "Avslutte spillet nå?";
+  const lead =
+    reason === "winner"
+      ? `${winnerLine} nådde toppen og kan feires med en ordentlig sluttskjerm.`
+      : `${winnerLine} ligger best an dersom dere avslutter spillet nå.`;
+
+  return `
+    <p id="modal-summary-title" class="modal-title">${escHtml(title)}</p>
+    <p class="summary-lead">${escHtml(lead)}</p>
+    <div class="summary-pill-row">
+      <span class="summary-pill">${summary.rounds} runder</span>
+      <span class="summary-pill">Høyeste nivå ${summary.highestLevel}</span>
+      <span class="summary-pill">${summary.totalPoints} totalpoeng</span>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-title">Stillingen akkurat nå</div>
+      <div class="summary-standings">
+        ${summary.standings
+          .map(
+            (entry, index) => `
+              <div class="summary-standing-row${summary.winners.includes(entry.name) ? " is-winner" : ""}">
+                <span class="summary-standing-rank">${index + 1}</span>
+                <span class="summary-standing-name">${escHtml(entry.name)}</span>
+                <span class="summary-standing-level">Nivå ${entry.level}</span>
+                <span class="summary-standing-total">${entry.total} poeng</span>
+              </div>`,
+          )
+          .join("")}
+      </div>
+    </div>
+    <div class="summary-metrics">
+      <div class="summary-metric">
+        <span class="summary-metric-label">Beste runde</span>
+        <strong>${summary.bestRoundTotal} poeng totalt</strong>
+      </div>
+      <div class="summary-metric">
+        <span class="summary-metric-label">Siste runde</span>
+        <strong>${summary.lastRoundTotal} poeng totalt</strong>
+      </div>
+      <div class="summary-metric">
+        <span class="summary-metric-label">Ferdige spillere</span>
+        <strong>${summary.completedPlayers.length > 0 ? escHtml(summary.completedPlayers.join(", ")) : "Ingen ennå"}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function openSummaryModal(reason, highlightedWinners = []) {
+  refs.summaryContent.innerHTML = buildSummaryMarkup(reason, highlightedWinners);
+  refs.summaryContinue.textContent = "Fortsett spillet";
+  refs.summaryNewGame.textContent = reason === "winner" ? "Nytt spill" : "Avslutt og start nytt";
+  openModal(refs.modalSummary, "#summary-continue");
+}
+
+function exportBackup() {
+  const payload = buildBackupPayload({
+    state,
+    history: historyEntries,
+    settings,
+    lastVersion: loadLastVersion(storage),
+    appVersion: VERSION,
+  });
+  const blob = new Blob([stringifyBackup(payload)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `11ern-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  setStatus(refs.settingsDataStatus, "Backup eksportert som JSON.", "success");
+}
+
+async function importBackupFromFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  try {
+    const backup = parseBackup(await file.text());
+    state = normalizeState(backup.state);
+    settings = normalizeSettings(backup.settings);
+    historyEntries = backup.history;
+    editingRoundIndex = null;
+
+    persistState();
+    persistSettings();
+    persistHistory();
+    saveLastVersion(storage, backup.lastVersion ?? VERSION);
+    syncThemeFromSettings();
+    setStatus(
+      refs.settingsDataStatus,
+      `Backup importert. ${historyEntries.length} avsluttede spill og ${state.rounds.length} aktive runder lastet inn.`,
+      "success",
+    );
+    closeModal(refs.modalSettings, false);
+    showView(state.players.length >= MIN_PLAYERS && state.view === "round" ? "round" : "setup");
+  } catch (error) {
+    setStatus(refs.settingsDataStatus, error.message, "error");
+  } finally {
+    refs.importDataInput.value = "";
   }
 }
 
@@ -956,53 +1143,134 @@ function registerServiceWorker() {
 }
 
 function bindEvents() {
-  document.getElementById("btn-rules").addEventListener("click", openRulesModal);
-  document.getElementById("modal-rules-close").addEventListener("click", hideRulesModal);
-  document.getElementById("modal-rules").addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) {
-      hideRulesModal();
+  document.addEventListener("keydown", handleModalKeydown);
+
+  document.getElementById("players-dec").addEventListener("click", () => {
+    if (state.playerCount > MIN_PLAYERS) {
+      state.playerCount -= 1;
+      persistState();
+      renderSetup();
     }
   });
 
-  document.querySelectorAll(".btn-settings:not(#btn-rules)").forEach((button) => {
-    button.addEventListener("click", openSettingsModal);
+  document.getElementById("players-inc").addEventListener("click", () => {
+    if (state.playerCount < MAX_PLAYERS) {
+      state.playerCount += 1;
+      persistState();
+      renderSetup();
+    }
   });
 
-  document.querySelectorAll(".theme-btn").forEach((button) => {
+  document.getElementById("btn-start-game").addEventListener("click", startGame);
+  document.getElementById("btn-submit-round").addEventListener("click", submitRound);
+  refs.undoRoundButton.addEventListener("click", undoLastRoundAction);
+
+  document.getElementById("btn-rules").addEventListener("click", openRulesModal);
+  document.getElementById("btn-settings-setup").addEventListener("click", openSettingsModal);
+  document.getElementById("btn-settings-round").addEventListener("click", openSettingsModal);
+
+  refs.modalRules.addEventListener("click", (event) => {
+    if (event.target === refs.modalRules) {
+      closeModal(refs.modalRules);
+    }
+  });
+  document.getElementById("modal-rules-close").addEventListener("click", () => {
+    closeModal(refs.modalRules);
+  });
+
+  refs.modalSettings.addEventListener("click", (event) => {
+    if (event.target === refs.modalSettings) {
+      closeModal(refs.modalSettings);
+    }
+  });
+  document.getElementById("modal-settings-close").addEventListener("click", () => {
+    closeModal(refs.modalSettings);
+  });
+
+  refs.modalChangelog.addEventListener("click", (event) => {
+    if (event.target === refs.modalChangelog) {
+      closeModal(refs.modalChangelog);
+    }
+  });
+  document.getElementById("modal-changelog-close").addEventListener("click", () => {
+    closeModal(refs.modalChangelog);
+  });
+
+  refs.modalEdit.addEventListener("click", (event) => {
+    if (event.target === refs.modalEdit) {
+      closeModal(refs.modalEdit);
+    }
+  });
+  document.getElementById("modal-edit-save").addEventListener("click", saveEditedRound);
+  document.getElementById("modal-edit-cancel").addEventListener("click", () => {
+    editingRoundIndex = null;
+    closeModal(refs.modalEdit);
+  });
+  document.getElementById("modal-edit-delete").addEventListener("click", deleteRoundAction);
+
+  refs.modalConfirm.addEventListener("click", (event) => {
+    if (event.target === refs.modalConfirm) {
+      closeModal(refs.modalConfirm);
+    }
+  });
+  document.getElementById("modal-no").addEventListener("click", () => {
+    closeModal(refs.modalConfirm);
+  });
+  document.getElementById("modal-yes").addEventListener("click", () => {
+    closeModal(refs.modalConfirm, false);
+    resetGame({ archive: false });
+  });
+
+  refs.modalSummary.addEventListener("click", (event) => {
+    if (event.target === refs.modalSummary) {
+      closeModal(refs.modalSummary);
+    }
+  });
+  refs.summaryContinue.addEventListener("click", () => {
+    closeModal(refs.modalSummary);
+  });
+  refs.summaryNewGame.addEventListener("click", () => {
+    closeModal(refs.modalSummary, false);
+    resetGame({ archive: true });
+  });
+
+  document.getElementById("btn-new-game-round").addEventListener("click", () => {
+    if (state.rounds.length > 0) {
+      openSummaryModal("manual");
+      return;
+    }
+
+    openModal(refs.modalConfirm, "#modal-yes");
+  });
+
+  refs.modalSettings.querySelectorAll(".theme-btn").forEach((button) => {
     button.addEventListener("click", () => {
-      const value = button.dataset.themeVal;
-      applyThemePreference(value);
-      document.querySelectorAll(".theme-btn").forEach((item) => {
-        item.classList.toggle("active", item.dataset.themeVal === settings.theme);
-      });
+      applyThemePreference(button.dataset.themeVal);
+      openSettingsModal();
     });
   });
 
-  document.querySelectorAll(".color-swatch").forEach((button) => {
+  refs.modalSettings.querySelectorAll(".color-swatch").forEach((button) => {
     button.addEventListener("click", () => {
       applyColor(button.dataset.colorVal);
-      document.querySelectorAll(".color-swatch").forEach((item) => {
-        item.classList.toggle("active", item.dataset.colorVal === settings.color);
-      });
+      openSettingsModal();
     });
   });
 
-  document.getElementById("settings-cheat-toggle").addEventListener("change", (event) => {
+  refs.settingsCheatToggle.addEventListener("change", (event) => {
     settings.cheatEnabled = event.target.checked;
-    document.getElementById("settings-cheat-points-row").style.display = settings.cheatEnabled
-      ? "flex"
-      : "none";
-    saveSettings();
+    refs.settingsCheatPointsRow.style.display = settings.cheatEnabled ? "flex" : "none";
+    persistSettings();
     if (state.view === "round") {
       renderRound();
     }
   });
 
-  document.getElementById("settings-cheat-points").addEventListener("change", (event) => {
+  refs.settingsCheatPoints.addEventListener("change", (event) => {
     const value = Number.parseInt(event.target.value, 10);
     if (!Number.isNaN(value) && value > 0) {
       settings.cheatPoints = value;
-      saveSettings();
+      persistSettings();
       if (state.view === "round" && settings.cheatEnabled) {
         renderRound();
       }
@@ -1012,114 +1280,46 @@ function bindEvents() {
     event.target.value = String(settings.cheatPoints);
   });
 
-  document.getElementById("modal-settings-close").addEventListener("click", hideSettingsModal);
-  document.getElementById("modal-settings").addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) {
-      hideSettingsModal();
-    }
+  document.getElementById("btn-export-data").addEventListener("click", exportBackup);
+  document.getElementById("btn-import-data").addEventListener("click", () => {
+    refs.importDataInput.click();
   });
-
-  document.getElementById("players-dec").addEventListener("click", () => {
-    if (state.playerCount > MIN_PLAYERS) {
-      state.playerCount -= 1;
-      renderSetup();
-    }
-  });
-
-  document.getElementById("players-inc").addEventListener("click", () => {
-    if (state.playerCount < MAX_PLAYERS) {
-      state.playerCount += 1;
-      renderSetup();
-    }
-  });
-
-  document.getElementById("btn-start-game").addEventListener("click", startGame);
-  document.getElementById("btn-submit-round").addEventListener("click", submitRound);
-  document.getElementById("btn-new-game-round").addEventListener("click", showConfirmModal);
-
-  document.getElementById("modal-yes").addEventListener("click", () => {
-    hideConfirmModal();
-    resetGame();
-  });
-  document.getElementById("modal-no").addEventListener("click", hideConfirmModal);
-  document.getElementById("modal-confirm").addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) {
-      hideConfirmModal();
-    }
-  });
-
-  document.getElementById("modal-edit-save").addEventListener("click", saveEditedRound);
-  document.getElementById("modal-edit-cancel").addEventListener("click", hideEditModal);
-  document.getElementById("modal-edit-delete").addEventListener("click", deleteRound);
-  document.getElementById("modal-edit").addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) {
-      hideEditModal();
-    }
-  });
-
-  document.getElementById("winner-continue").addEventListener("click", () => {
-    document.getElementById("modal-winner").classList.remove("open");
-  });
-  document.getElementById("winner-new-game").addEventListener("click", () => {
-    document.getElementById("modal-winner").classList.remove("open");
-    showConfirmModal();
-  });
-
-  document.getElementById("modal-changelog-close").addEventListener("click", () => {
-    document.getElementById("modal-changelog").classList.remove("open");
-  });
-  document.getElementById("modal-changelog").addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) {
-      document.getElementById("modal-changelog").classList.remove("open");
-    }
-  });
-
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      hideEditModal();
-      hideConfirmModal();
-      hideSettingsModal();
-      hideRulesModal();
-      document.getElementById("modal-winner").classList.remove("open");
-      document.getElementById("modal-changelog").classList.remove("open");
-    }
-  });
+  refs.importDataInput.addEventListener("change", importBackupFromFile);
 
   const themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
-  const handleThemeChange = () => {
+  themeMedia.addEventListener("change", () => {
     if (settings.theme === "auto") {
       syncThemeFromSettings();
     }
-  };
-
-  themeMedia.addEventListener("change", handleThemeChange);
+  });
 }
 
-const renders = {
-  setup: renderSetup,
-  round: renderRound,
-};
-
 function init() {
-  initTheme();
-  document.getElementById("version-display").textContent = `v${VERSION}`;
-  document.getElementById("version-display-round").textContent = `v${VERSION}`;
+  cacheRefs();
+  document.querySelectorAll(".modal-overlay").forEach((modal) => {
+    modal.setAttribute("aria-hidden", "true");
+    modal.tabIndex = -1;
+  });
+  loadPersistedData();
+  syncThemeFromSettings();
+
+  refs.versionDisplay.textContent = `v${VERSION}`;
+  refs.versionDisplayRound.textContent = `v${VERSION}`;
+  setStatus(refs.roundActionStatus, "");
+  setStatus(
+    refs.settingsDataStatus,
+    "Eksporterer aktivt spill, historikk og innstillinger som JSON.",
+  );
+
   bindEvents();
 
-  const saved = loadSavedState();
-  if (saved) {
-    state = { ...defaultState(), ...saved };
-    if (state.players.length >= MIN_PLAYERS) {
-      state.playerCount = state.players.length;
-    }
-    const savedView = state.view === "standings" ? "round" : state.view || "setup";
-    showView(savedView);
+  if (state.players.length >= MIN_PLAYERS && state.view === "round") {
+    showView("round");
   } else {
     showView("setup");
   }
 
   checkChangelog();
-  rerenderCurrentView();
   registerServiceWorker();
 }
 

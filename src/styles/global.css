@@ -129,6 +129,10 @@ body {
   @apply relative m-0 text-base leading-6 antialiased;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 body::before {
   content: "";
   position: fixed;
@@ -265,6 +269,19 @@ input[type="number"] {
   color: var(--text-muted);
 }
 
+.inline-status {
+  @apply mt-1 text-sm;
+  color: var(--text-muted);
+}
+
+.inline-status[data-tone="success"] {
+  color: var(--primary);
+}
+
+.inline-status[data-tone="error"] {
+  color: var(--danger);
+}
+
 .stepper {
   background: var(--surface-strong);
   border: 2px solid var(--border);
@@ -313,6 +330,25 @@ input[type="number"] {
 
 .player-score-row {
   @apply flex items-center gap-4 rounded-2xl px-4 py-3;
+}
+
+.score-entry-controls {
+  @apply flex shrink-0 items-center gap-2;
+}
+
+.score-input-shell {
+  @apply shrink-0;
+}
+
+.score-step-btn {
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 86%, var(--bg));
+  color: var(--primary);
+  @apply min-h-10 min-w-[3rem] rounded-xl px-2 py-2 text-sm font-bold;
+}
+
+.score-step-btn:hover {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface-strong));
 }
 
 .player-score-row.rank-first {
@@ -532,6 +568,7 @@ input[type="number"] {
 .btn-ghost,
 .btn-danger,
 .btn-secondary,
+.btn-soft,
 .btn-edit-round,
 .btn-clear-history,
 .btn-settings,
@@ -542,7 +579,8 @@ input[type="number"] {
 
 .btn-primary,
 .btn-ghost,
-.btn-danger {
+.btn-danger,
+.btn-soft {
   @apply min-h-11 px-4 py-2.5;
 }
 
@@ -582,6 +620,17 @@ input[type="number"] {
 
 .btn-danger:hover {
   filter: brightness(1.05);
+}
+
+.btn-soft {
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--bg));
+  color: var(--text);
+  @apply w-full text-sm font-semibold;
+}
+
+.btn-soft:hover {
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-strong));
 }
 
 .btn-edit-round,
@@ -648,6 +697,10 @@ input[type="number"] {
   @apply text-center;
 }
 
+.modal-box-wide {
+  @apply max-w-lg;
+}
+
 .modal-title {
   @apply text-[1.05rem] font-bold;
 }
@@ -684,6 +737,82 @@ input[type="number"] {
 
 .winner-sub {
   @apply mt-2 text-sm;
+  color: var(--text-muted);
+}
+
+.summary-lead {
+  @apply mt-1 text-sm leading-6;
+  color: var(--text-muted);
+}
+
+.summary-pill-row {
+  @apply flex flex-wrap gap-2;
+}
+
+.summary-pill {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface-strong));
+  color: var(--primary);
+  @apply rounded-full px-3 py-1 text-xs font-bold;
+}
+
+.summary-card {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  @apply rounded-2xl p-4;
+}
+
+.summary-card-title {
+  @apply mb-3 text-[0.78rem] font-bold uppercase tracking-[0.18em];
+  color: var(--text-muted);
+}
+
+.summary-standings {
+  @apply flex flex-col gap-2;
+}
+
+.summary-standing-row {
+  border: 1px solid var(--border);
+  @apply grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-xl px-3 py-2;
+}
+
+.summary-standing-row.is-winner {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface-strong));
+}
+
+.summary-standing-rank {
+  color: var(--text-muted);
+  @apply text-sm font-bold;
+}
+
+.summary-standing-name {
+  @apply min-w-0 truncate font-semibold;
+}
+
+.summary-standing-level,
+.summary-standing-total {
+  @apply text-sm;
+}
+
+.summary-standing-level {
+  color: var(--text-muted);
+}
+
+.summary-standing-total {
+  @apply font-bold;
+}
+
+.summary-metrics {
+  @apply grid gap-3 sm:grid-cols-3;
+}
+
+.summary-metric {
+  border: 1px solid var(--border);
+  @apply rounded-xl px-3 py-3;
+}
+
+.summary-metric-label {
+  @apply block text-[0.72rem] font-semibold uppercase tracking-[0.14em];
   color: var(--text-muted);
 }
 
@@ -760,6 +889,10 @@ input[type="number"] {
   @apply flex flex-wrap items-center gap-2;
 }
 
+.settings-action-grid {
+  @apply grid gap-2 sm:grid-cols-2;
+}
+
 .theme-btn {
   background: color-mix(in srgb, var(--bg) 70%, white 30%);
   border: 2px solid var(--border);
@@ -800,6 +933,23 @@ input[type="number"] {
   @apply w-[4.5rem] text-center;
 }
 
+.settings-helper {
+  @apply text-sm leading-6;
+  color: var(--text-muted);
+}
+
+.settings-helper[data-tone="success"] {
+  color: var(--primary);
+}
+
+.settings-helper[data-tone="error"] {
+  color: var(--danger);
+}
+
+.round-actions {
+  @apply grid gap-2 sm:grid-cols-[minmax(0,10rem)_1fr];
+}
+
 @media (max-width: 420px) {
   #app {
     @apply px-2 py-2;
@@ -818,5 +968,13 @@ input[type="number"] {
   .score-input,
   .edit-score-input {
     @apply w-16 text-lg;
+  }
+
+  .score-entry-controls {
+    @apply gap-1.5;
+  }
+
+  .score-step-btn {
+    @apply min-w-[2.75rem] px-2;
   }
 }

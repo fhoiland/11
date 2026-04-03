@@ -18,7 +18,9 @@ const themeBootstrap = `
   const LEGACY_THEME_KEY = "11ern_theme";
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    const settings = raw ? JSON.parse(raw) : {};
+    const parsed = raw ? JSON.parse(raw) : {};
+    const settings =
+      parsed && typeof parsed === "object" && parsed.data ? parsed.data : parsed;
     if (!settings.theme) {
       settings.theme = localStorage.getItem(LEGACY_THEME_KEY) ?? "auto";
     }
